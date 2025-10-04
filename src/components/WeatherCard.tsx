@@ -41,36 +41,44 @@ const WeatherCard = ({ title, probability, description, icon: Icon, variant }: W
 
   return (
     <Card className={cn(
-      "p-6 shadow-card hover:shadow-hover transition-all duration-300 border-2 animate-fade-in",
+      "p-6 shadow-card hover:shadow-hover transition-all duration-300 border-2 animate-fade-in h-full flex flex-col group",
       getVariantStyles()
     )}>
-      <div className="flex items-start justify-between mb-4">
+      <div className="flex items-start justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Icon className={cn("w-8 h-8", getIconColor())} />
-          <h3 className="font-semibold text-lg">{title}</h3>
+          <div className="p-2 rounded-lg bg-background/50 backdrop-blur-sm group-hover:scale-110 transition-transform duration-300">
+            <Icon className={cn("w-6 h-6", getIconColor())} />
+          </div>
+          <div>
+            <h3 className="font-semibold text-lg leading-tight">{title}</h3>
+          </div>
         </div>
       </div>
       
-      <div className="mb-4">
-        <div className={cn("text-5xl font-bold mb-2", getSeverityColor())}>
-          {probability}%
-        </div>
-        <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
-          <div 
-            className={cn(
-              "h-full rounded-full transition-all duration-500",
-              variant === "hot" && "bg-weather-hot",
-              variant === "cold" && "bg-weather-cold",
-              variant === "windy" && "bg-weather-windy",
-              variant === "humid" && "bg-weather-humid",
-              variant === "uncomfortable" && "bg-weather-uncomfortable"
-            )}
-            style={{ width: `${probability}%` }}
-          />
+      <div className="mb-6 flex-grow flex flex-col justify-center">
+        <div className="text-center mb-4">
+          <div className={cn("text-4xl md:text-5xl font-bold mb-3 leading-none", getSeverityColor())}>
+            {probability}%
+          </div>
+          <div className="w-full bg-muted rounded-full h-3 overflow-hidden shadow-inner">
+            <div 
+              className={cn(
+                "h-full rounded-full transition-all duration-700 ease-out",
+                variant === "hot" && "bg-weather-hot",
+                variant === "cold" && "bg-weather-cold",
+                variant === "windy" && "bg-weather-windy",
+                variant === "humid" && "bg-weather-humid",
+                variant === "uncomfortable" && "bg-weather-uncomfortable"
+              )}
+              style={{ width: `${probability}%` }}
+            />
+          </div>
         </div>
       </div>
       
-      <p className="text-sm text-muted-foreground">{description}</p>
+      <div className="mt-auto pt-4 border-t border-border/50">
+        <p className="text-sm text-muted-foreground leading-relaxed text-center">{description}</p>
+      </div>
     </Card>
   );
 };
