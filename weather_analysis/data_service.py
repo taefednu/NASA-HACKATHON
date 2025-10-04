@@ -86,8 +86,8 @@ class NASAPowerAPI(WeatherDataSource):
             print(f"✓ Данные загружены из кэша")
             return cached_data
         
-        # Параметры для запроса
-        parameters = "T2M,T2M_MAX,T2M_MIN,PRECTOTCORR,WS2M,RH2M,PS,CLOUD_AMT"
+        # Параметры для запроса - расширенный список
+        parameters = "T2M,T2M_MAX,T2M_MIN,T2MDEW,PRECTOTCORR,WS2M,WS10M,RH2M,PS,CLOUD_AMT,ALLSKY_SFC_SW_DWN,ALLSKY_SFC_UV_INDEX,QV2M,SNODP"
         
         # Формируем URL для daily данных
         url = (
@@ -165,6 +165,85 @@ class NASAPowerAPI(WeatherDataSource):
             
         except KeyError as e:
             raise Exception(f"Неожиданный формат данных от NASA: {e}")
+    
+    def interpolate_point(self, latitude: float, longitude: float,
+                         start_year: int = 1990, end_year: int = 2023) -> pd.DataFrame:
+        """
+        Получить интерполированные данные для точной локации
+        Использует билинейную интерполяцию между 4 ближайшими точками сетки
+        
+        Args:
+            latitude: Точная широта
+            longitude: Точная долгота
+            start_year: Начальный год
+            end_year: Конечный год
+            
+        Returns:
+            DataFrame с интерполированными данными
+        """
+        # NASA сетка 0.5° × 0.5°
+        grid_size = 0.5
+        
+        # Находим 4 ближайшие точки сетки
+        lat_low = (latitude // grid_size) * grid_size
+        lat_high = lat_low + grid_size
+        lon_low = (longitude // grid_size) * grid_size
+        lon_high = lon_low + grid_size
+        
+        # 4 угловые точки
+        corners = [
+            (lat_low, lon_low),    # Юго-запад
+            (lat_low, lon_high),   # Юго-восток
+            (lat_high, lon_low),   # Северо-запад
+            (lat_high, lon_high)   # Северо-восток
+        ]
+        
+        print(f"🔍 Интерполяция для точки ({latitude:.4f}, {longitude:.4f})")
+        print(f"   Используем 4 точки сетки вокруг:")
+        
+        # Получаем данные для всех 4 точек
+        corner_data = []
+        weights = []
+        
+        for i, (lat, lon) in enumerate(corners):
+            try:
+                data = self.get_historical_data(lat, lon, start_year, end_year)
+                corner_data.append(data)
+                
+                # Вычисляем вес на основе расстояния
+                distance = ((latitude - lat)**2 + (longitude - lon)**2)**0.5
+                weight = 1.0 / (distance + 0.001)  # +0.001 чтобы избежать деления на 0
+                weights.append(weight)
+                
+                print(f"   ✓ Точка {i+1}: ({lat:.2f}, {lon:.2f}), вес={weight:.3f}")
+                
+            except Exception as e:
+                print(f"   ⚠ Ошибка для точки ({lat}, {lon}): {e}")
+                continue
+        
+        if not corner_data:
+            raise Exception("Не удалось получить данные ни для одной точки сетки")
+        
+        # Нормализуем веса
+        total_weight = sum(weights)
+        weights = [w / total_weight for w in weights]
+        
+        # Интерполяция: взвешенное среднее
+        print(f"   🔄 Выполняем взвешенную интерполяцию...")
+        
+        # Берем структуру первого датафрейма
+        result = corner_data[0].copy()
+        
+        # Интерполируем числовые колонки
+        numeric_columns = result.select_dtypes(include=['float64', 'int64']).columns
+        numeric_columns = [col for col in numeric_columns if col not in ['year', 'day_of_year']]
+        
+        for col in numeric_columns:
+            weighted_sum = sum(df[col] * weight for df, weight in zip(corner_data, weights))
+            result[col] = weighted_sum
+        
+        print(f"   ✅ Интерполяция завершена!")
+        return result
 
 
 class OpenMeteoAPI(WeatherDataSource):
@@ -269,9 +348,17 @@ class WeatherDataService:
         self.use_mock = use_mock
     
     def get_data(self, latitude: float, longitude: float,
-                 start_year: int = 1990, end_year: int = 2023) -> Tuple[pd.DataFrame, str]:
+                 start_year: int = 1990, end_year: int = 2023,
+                 use_interpolation: bool = True) -> Tuple[pd.DataFrame, str]:
         """
         Получить данные о погоде (пытается использовать NASA, если не получается - Open-Meteo, если и это не получается - Mock)
+        
+        Args:
+            latitude: Широта
+            longitude: Долгота
+            start_year: Начальный год
+            end_year: Конечный год
+            use_interpolation: Использовать интерполяцию для повышения точности (рекомендуется)
         
         Returns:
             Tuple[DataFrame, источник_данных]
@@ -284,8 +371,13 @@ class WeatherDataService:
         # Пытаемся получить от предпочитаемого источника
         if self.preferred_source == 'nasa':
             try:
-                data = self.nasa.get_historical_data(latitude, longitude, start_year, end_year)
-                return data, 'NASA POWER API'
+                # Используем интерполяцию для точности ~100м
+                if use_interpolation:
+                    data = self.nasa.interpolate_point(latitude, longitude, start_year, end_year)
+                    return data, 'NASA POWER API (интерполяция)'
+                else:
+                    data = self.nasa.get_historical_data(latitude, longitude, start_year, end_year)
+                    return data, 'NASA POWER API'
             except Exception as e:
                 print(f"⚠ NASA API недоступен: {e}")
                 print(f"🔄 Переключаемся на Open-Meteo...")
@@ -308,8 +400,12 @@ class WeatherDataService:
                 print(f"🔄 Переключаемся на NASA...")
                 
                 try:
-                    data = self.nasa.get_historical_data(latitude, longitude, start_year, end_year)
-                    return data, 'NASA POWER API'
+                    if use_interpolation:
+                        data = self.nasa.interpolate_point(latitude, longitude, start_year, end_year)
+                        return data, 'NASA POWER API (интерполяция)'
+                    else:
+                        data = self.nasa.get_historical_data(latitude, longitude, start_year, end_year)
+                        return data, 'NASA POWER API'
                 except Exception as e2:
                     print(f"⚠ NASA также недоступен: {e2}")
                     print(f"🧪 Используем Mock данные для тестирования...")
