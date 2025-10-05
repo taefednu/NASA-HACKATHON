@@ -7,205 +7,597 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Sun, Snowflake, Wind, Droplets, Frown, Search, MapPin, Calendar as CalendarIcon, Download, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Thermometer, Eye, Zap } from "lucide-react";
+import { Sun, Snowflake, Wind, Droplets, Frown, Search, MapPin, Calendar as CalendarIcon, Download, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Thermometer, Eye, Zap, Loader2, Navigation, Map as MapIcon } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
 const Dashboard = () => {
   const [date, setDate] = useState<Date | undefined>(new Date());
+  const [dateEnd, setDateEnd] = useState<Date | undefined>(undefined);
   const [location, setLocation] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [unit, setUnit] = useState<"C" | "F">("C");
   const [showDetailedTable, setShowDetailedTable] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isMapOpen, setIsMapOpen] = useState(false);
+  const [weatherData, setWeatherData] = useState<any>(null);
+  const [showMetrics, setShowMetrics] = useState(false);
   const [sortConfig, setSortConfig] = useState<{
     key: 'category' | 'parameter' | 'probability' | 'threshold' | 'description';
     direction: 'asc' | 'desc';
   } | null>(null);
 
-  // Ключевые метрики погоды (из API statistics)
-  const weatherMetrics = {
-    averageTemp: unit === "C" ? 23.5 : 74.3,
-    feelsLikeTemp: unit === "C" ? 26.8 : 80.2,
-    airQuality: 42, // PM2.5 в μg/m³
-    airQualityStatus: "Умеренно" as const
+  // Функция получения геолокации
+  const handleGetMyLocation = () => {
+    if ("geolocation" in navigator) {
+      setIsLoading(true);
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLatitude(position.coords.latitude.toFixed(6));
+          setLongitude(position.coords.longitude.toFixed(6));
+          setLocation(""); // Очищаем название при получении координат
+          setIsLoading(false);
+        },
+        (error) => {
+          console.error("Geolocation error:", error);
+          setIsLoading(false);
+        }
+      );
+    }
   };
 
-  // Функция для получения статуса качества воздуха
+  // Функция геокодинга (преобразование названия в координаты)
+  const geocodeLocation = async (locationName: string): Promise<{lat: number, lon: number} | null> => {
+    try {
+      // Используем Nominatim OpenStreetMap API (бесплатный)
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationName)}&limit=1`,
+        {
+          headers: {
+            'User-Agent': 'NASA-Weather-App'
+          }
+        }
+      );
+      
+      if (!response.ok) return null;
+      
+      const data = await response.json();
+      if (data.length === 0) return null;
+      
+      return {
+        lat: parseFloat(data[0].lat),
+        lon: parseFloat(data[0].lon)
+      };
+    } catch (error) {
+      console.error('Geocoding error:', error);
+      return null;
+    }
+  };
+
+  // Функция анализа погоды
+  const handleAnalyze = async () => {
+    let finalLat: number | null = null;
+    let finalLon: number | null = null;
+
+    // Проверяем: либо координаты, либо название локации
+    if (latitude && longitude) {
+      // Используем координаты напрямую
+      finalLat = parseFloat(latitude);
+      finalLon = parseFloat(longitude);
+    } else if (location.trim()) {
+      // Преобразуем название в координаты
+      setIsLoading(true);
+      const coords = await geocodeLocation(location.trim());
+      setIsLoading(false);
+      
+      if (!coords) {
+        alert(`Не удалось найти координаты для "${location}". Попробуйте ввести координаты вручную.`);
+        return;
+      }
+      
+      finalLat = coords.lat;
+      finalLon = coords.lon;
+      
+      // Обновляем поля координат для отображения
+      setLatitude(coords.lat.toFixed(6));
+      setLongitude(coords.lon.toFixed(6));
+    } else {
+      alert("Пожалуйста, укажите локацию: введите название города или координаты (широта и долгота), либо выберите на карте");
+      return;
+    }
+
+    if (!date) {
+      alert("Пожалуйста, выберите дату");
+      return;
+    }
+
+    setIsLoading(true);
+    setShowMetrics(false);
+    try {
+      // Если dateEnd заполнена, используем диапазон, иначе один день
+      const requestBody: any = {
+        latitude: finalLat,
+        longitude: finalLon,
+        data_source: "nasa",
+        detailed: true,
+        use_multi_source: true,
+        units: {
+          temperature: unit === "C" ? "celsius" : "fahrenheit"
+        }
+      };
+
+      if (dateEnd) {
+        // Диапазон дат
+        requestBody.date_start = format(date, "yyyy-MM-dd");
+        requestBody.date_end = format(dateEnd, "yyyy-MM-dd");
+      } else {
+        // Один день
+        requestBody.date = format(date, "yyyy-MM-dd");
+      }
+
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("Weather data:", data);
+      setWeatherData(data);
+      setShowMetrics(true);
+    } catch (err) {
+      console.error("Error fetching weather data:", err);
+      alert("Ошибка при получении данных");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Ключевые метрики погоды (из API statistics или дефолтные значения)
+  const weatherMetrics = weatherData?.statistics ? {
+    averageTemp: weatherData.statistics.temperature?.mean || 0,
+    feelsLikeTemp: weatherData.statistics.apparent_temperature?.mean || weatherData.statistics.temperature?.mean || 0,
+    airQuality: weatherData.statistics.air_quality?.aod_mean 
+      ? Math.round(weatherData.statistics.air_quality.aod_mean * 100) 
+      : 0,
+    airQualityStatus: weatherData.statistics.air_quality?.level || "Нет данных" as const
+  } : {
+    averageTemp: 0,
+    feelsLikeTemp: 0,
+    airQuality: 0,
+    airQualityStatus: "Нет данных" as const
+  };
+
+  // Функция для получения статуса качества воздуха по AOD
   const getAirQualityStatus = (value: number) => {
-    if (value <= 12) return { status: 'Хорошо', color: 'green' };
-    if (value <= 35) return { status: 'Умеренно', color: 'yellow' };
-    if (value <= 55) return { status: 'Плохо', color: 'orange' };
+    // AOD (Aerosol Optical Depth) интерпретация
+    if (value <= 0.1) return { status: 'Хорошо', color: 'green' };
+    if (value <= 0.3) return { status: 'Умеренно', color: 'yellow' };
+    if (value <= 0.5) return { status: 'Плохо', color: 'orange' };
     return { status: 'Опасно', color: 'red' };
   };
 
-  const weatherData = [
+  // Вычисление индекса комфорта (0-100) на основе вероятностей
+  const calculateComfortIndex = () => {
+    if (!weatherData?.probabilities) return null;
+    
+    const probs = weatherData.probabilities;
+    
+    // Начинаем со 100 и вычитаем за негативные факторы
+    let index = 100;
+    
+    // Температурные факторы
+    index -= (probs.very_hot || 0) * 40;      // Очень жарко сильно снижает комфорт
+    index -= (probs.hot || 0) * 20;           // Жарко
+    index -= (probs.very_cold || 0) * 40;     // Очень холодно
+    index -= (probs.cold || 0) * 15;          // Холодно
+    
+    // Осадки и ветер
+    index -= (probs.very_wet || 0) * 30;      // Сильные осадки
+    index -= (probs.heavy_rain || 0) * 25;    // Сильный дождь
+    index -= (probs.very_windy || 0) * 20;    // Сильный ветер
+    
+    // Дискомфорт от влажности и жары
+    index -= (probs.very_uncomfortable || 0) * 35;
+    index -= (probs.hot_feels_like || 0) * 15;
+    index -= (probs.very_hot_feels_like || 0) * 25;
+    
+    // Добавляем за комфортные условия
+    index += (probs.comfortable || 0) * 10;
+    
+    // Ограничиваем диапазон 0-100
+    return Math.max(0, Math.min(100, Math.round(index)));
+  };
+
+  const comfortIndex = calculateComfortIndex();
+
+  // 5 ключевых погодных карточек с данными из API
+  const weatherCards = weatherData?.probabilities ? [
     {
-      title: "Ощущаемая температура",
-      probability: 34,
-      description: `34% вероятность ощущения ${unit === "C" ? ">40°C" : ">104°F"} (Heat Index)`,
+      title: "Ощущается жарко",
+      probability: Math.round(((weatherData.probabilities.hot_feels_like || 0) + (weatherData.probabilities.very_hot_feels_like || 0)) * 100),
+      description: `Вероятность дискомфорта от жары (Heat Index)`,
       icon: Sun,
       variant: "uncomfortable" as const,
     },
     {
       title: "Очень Жарко", 
-      probability: 42,
-      description: `42% вероятность жары ${unit === "C" ? ">30°C" : ">86°F"} (>90-й перцентиль)`,
+      probability: Math.round((weatherData.probabilities.very_hot || 0) * 100),
+      description: `Вероятность жары ${unit === "C" ? ">30°C" : ">86°F"} (>90-й перцентиль)`,
       icon: Sun,
       variant: "hot" as const,
     },
     {
       title: "Очень Холодно",
-      probability: 15,
-      description: `15% вероятность холода ${unit === "C" ? "<0°C" : "<32°F"} (<10-й перцентиль)`,
+      probability: Math.round((weatherData.probabilities.very_cold || 0) * 100),
+      description: `Вероятность холода ${unit === "C" ? "<0°C" : "<32°F"} (<10-й перцентиль)`,
       icon: Snowflake,
       variant: "cold" as const,
     },
     {
       title: "Очень Ветрено",
-      probability: 30,
-      description: "30% вероятность ветра >20м/с",
+      probability: Math.round((weatherData.probabilities.very_windy || 0) * 100),
+      description: "Вероятность ветра >20м/с",
       icon: Wind,
       variant: "windy" as const,
     },
     {
       title: "Очень Влажно",
-      probability: 58,
-      description: "58% вероятность осадков >100мм",
+      probability: Math.round((weatherData.probabilities.very_wet || 0) * 100),
+      description: "Вероятность осадков >100мм",
+      icon: Droplets,
+      variant: "humid" as const,
+    },
+  ] : [
+    {
+      title: "Ощущается жарко",
+      probability: 0,
+      description: `Вероятность дискомфорта от жары (Heat Index)`,
+      icon: Sun,
+      variant: "uncomfortable" as const,
+    },
+    {
+      title: "Очень Жарко", 
+      probability: 0,
+      description: `Вероятность жары ${unit === "C" ? ">30°C" : ">86°F"} (>90-й перцентиль)`,
+      icon: Sun,
+      variant: "hot" as const,
+    },
+    {
+      title: "Очень Холодно",
+      probability: 0,
+      description: `Вероятность холода ${unit === "C" ? "<0°C" : "<32°F"} (<10-й перцентиль)`,
+      icon: Snowflake,
+      variant: "cold" as const,
+    },
+    {
+      title: "Очень Ветрено",
+      probability: 0,
+      description: "Вероятность ветра >20м/с",
+      icon: Wind,
+      variant: "windy" as const,
+    },
+    {
+      title: "Очень Влажно",
+      probability: 0,
+      description: "Вероятность осадков >100мм",
       icon: Droplets,
       variant: "humid" as const,
     },
   ];
 
   // Детальные данные для таблицы вероятностей (на основе NASA данных)
-  const detailedProbabilities = [
-    // Температурные условия
+  const detailedProbabilities = weatherData?.probabilities ? [
+    // === ВЫСОКАЯ РЕЛЕВАНТНОСТЬ ДЛЯ ПОЛЬЗОВАТЕЛЕЙ ===
+    
+    // Температура (самое важное)
     { 
       category: "🌡️ Температура", 
       parameter: "Очень жарко", 
-      probability: 42, 
+      probability: Math.round((weatherData.probabilities.very_hot || 0) * 100),
       threshold: ">90-й перцентиль или >30°C",
       description: "Экстремально высокие температуры"
     },
     { 
       category: "🌡️ Температура", 
       parameter: "Жарко", 
-      probability: 65, 
+      probability: Math.round((weatherData.probabilities.hot || 0) * 100),
       threshold: ">75-й перцентиль или >25°C",
       description: "Высокие температуры"
     },
     { 
       category: "🌡️ Температура", 
       parameter: "Комфортная температура", 
-      probability: 38, 
+      probability: Math.round((weatherData.probabilities.comfortable || 0) * 100),
       threshold: "15-25°C",
       description: "Оптимальный температурный диапазон"
     },
     { 
       category: "🌡️ Температура", 
       parameter: "Холодно", 
-      probability: 22, 
+      probability: Math.round((weatherData.probabilities.cold || 0) * 100),
       threshold: "<25-й перцентиль или <10°C",
       description: "Низкие температуры"
     },
     { 
       category: "🌡️ Температура", 
       parameter: "Очень холодно", 
-      probability: 15, 
-      threshold: "<10-й перцентиль или <-10°C",
+      probability: Math.round((weatherData.probabilities.very_cold || 0) * 100),
+      threshold: "<10-й перцентиль или <0°C",
       description: "Экстремально низкие температуры"
     },
-    // Осадки
+    
+    // Осадки (критично для планирования)
     { 
       category: "💧 Осадки", 
       parameter: "Очень влажно", 
-      probability: 58, 
+      probability: Math.round((weatherData.probabilities.very_wet || 0) * 100),
       threshold: ">100мм",
       description: "Сильные ливни и грозы"
     },
     { 
       category: "💧 Осадки", 
       parameter: "Сильный дождь", 
-      probability: 35, 
+      probability: Math.round((weatherData.probabilities.heavy_rain || 0) * 100),
       threshold: ">50мм",
       description: "Интенсивные осадки"
     },
     { 
       category: "💧 Осадки", 
       parameter: "Умеренный дождь", 
-      probability: 28, 
+      probability: Math.round((weatherData.probabilities.moderate_rain || 0) * 100),
       threshold: "5-50мм",
       description: "Обычные дождевые осадки"
     },
     { 
       category: "💧 Осадки", 
       parameter: "Легкий дождь", 
-      probability: 45, 
+      probability: Math.round((weatherData.probabilities.light_rain || 0) * 100),
       threshold: "0.1-5мм",
       description: "Моросящий дождь"
     },
     { 
       category: "💧 Осадки", 
       parameter: "Сухо", 
-      probability: 42, 
+      probability: Math.round((weatherData.probabilities.dry || 0) * 100),
       threshold: "<0.1мм",
       description: "Отсутствие осадков"
     },
-    // Ветер
+    
+    // Ветер (важно для комфорта)
     { 
       category: "💨 Ветер", 
       parameter: "Очень ветрено", 
-      probability: 30, 
+      probability: Math.round((weatherData.probabilities.very_windy || 0) * 100),
       threshold: ">20 м/с",
       description: "Штормовой ветер"
     },
     { 
       category: "💨 Ветер", 
       parameter: "Сильный ветер", 
-      probability: 25, 
+      probability: Math.round((weatherData.probabilities.strong_wind || 0) * 100),
       threshold: "10-20 м/с",
       description: "Сильные порывы ветра"
     },
     { 
       category: "💨 Ветер", 
       parameter: "Умеренный ветер", 
-      probability: 35, 
+      probability: Math.round((weatherData.probabilities.moderate_wind || 0) * 100),
       threshold: "5-10 м/с",
       description: "Обычная скорость ветра"
     },
     { 
       category: "💨 Ветер", 
       parameter: "Штиль", 
-      probability: 18, 
+      probability: Math.round((weatherData.probabilities.calm || 0) * 100),
       threshold: "<2 м/с",
       description: "Слабый или отсутствующий ветер"
     },
-    // Индекс комфорта
+    
+    // Общий комфорт (Heat Index)
     { 
       category: "🏠 Комфорт", 
       parameter: "Очень некомфортно", 
-      probability: 23, 
+      probability: Math.round((weatherData.probabilities.very_uncomfortable || 0) * 100),
       threshold: "Heat Index >40°C",
       description: "Опасный уровень жары с учетом влажности"
     },
     { 
       category: "🏠 Комфорт", 
-      parameter: "Некомфортно жарко", 
-      probability: 38, 
-      threshold: "T>25°C + влажность >70%",
-      description: "Душная погода"
+      parameter: "Некомфортно", 
+      probability: Math.round((weatherData.probabilities.uncomfortable || 0) * 100),
+      threshold: "Heat Index 32-40°C",
+      description: "Душная погода, дискомфорт"
     },
     { 
       category: "🏠 Комфорт", 
       parameter: "Комфортно", 
-      probability: 32, 
+      probability: Math.round((weatherData.probabilities.comfortable_comfort || 0) * 100),
       threshold: "T: 18-24°C, влажность <70%",
       description: "Оптимальные условия для человека"
     },
-  ];
+    
+    // === СРЕДНЯЯ РЕЛЕВАНТНОСТЬ (ИНТЕРЕСНЫЕ ДАННЫЕ) ===
+    
+    // UV индекс (здоровье кожи)
+    { 
+      category: "☀️ УФ-индекс", 
+      parameter: "Экстремальный", 
+      probability: Math.round((weatherData.probabilities.extreme_uv || 0) * 100),
+      threshold: "UV >11",
+      description: "Опасный уровень УФ-излучения"
+    },
+    { 
+      category: "☀️ УФ-индекс", 
+      parameter: "Очень высокий", 
+      probability: Math.round((weatherData.probabilities.very_high_uv || 0) * 100),
+      threshold: "UV 8-11",
+      description: "Высокий риск солнечных ожогов"
+    },
+    { 
+      category: "☀️ УФ-индекс", 
+      parameter: "Высокий", 
+      probability: Math.round((weatherData.probabilities.high_uv || 0) * 100),
+      threshold: "UV 6-7",
+      description: "Необходима защита от солнца"
+    },
+    { 
+      category: "☀️ УФ-индекс", 
+      parameter: "Умеренный", 
+      probability: Math.round((weatherData.probabilities.moderate_uv || 0) * 100),
+      threshold: "UV 3-5",
+      description: "Умеренное УФ-излучение"
+    },
+    { 
+      category: "☀️ УФ-индекс", 
+      parameter: "Низкий", 
+      probability: Math.round((weatherData.probabilities.low_uv || 0) * 100),
+      threshold: "UV <3",
+      description: "Безопасный уровень УФ"
+    },
+    
+    // Облачность (визуальный комфорт)
+    { 
+      category: "☁️ Облачность", 
+      parameter: "Ясно", 
+      probability: Math.round((weatherData.probabilities.clear || 0) * 100),
+      threshold: "<20% покрытия",
+      description: "Безоблачное небо"
+    },
+    { 
+      category: "☁️ Облачность", 
+      parameter: "Малооблачно", 
+      probability: Math.round((weatherData.probabilities.partly_cloudy || 0) * 100),
+      threshold: "20-50% покрытия",
+      description: "Переменная облачность"
+    },
+    { 
+      category: "☁️ Облачность", 
+      parameter: "Облачно", 
+      probability: Math.round((weatherData.probabilities.mostly_cloudy || 0) * 100),
+      threshold: "50-80% покрытия",
+      description: "Преобладающая облачность"
+    },
+    { 
+      category: "☁️ Облачность", 
+      parameter: "Пасмурно", 
+      probability: Math.round((weatherData.probabilities.overcast || 0) * 100),
+      threshold: ">80% покрытия",
+      description: "Сплошная облачность"
+    },
+    
+    // Атмосферное давление (метеочувствительность)
+    { 
+      category: "🌀 Давление", 
+      parameter: "Низкое", 
+      probability: Math.round((weatherData.probabilities.low_pressure || 0) * 100),
+      threshold: "<1000 гПа",
+      description: "Циклон, возможны осадки"
+    },
+    { 
+      category: "🌀 Давление", 
+      parameter: "Нормальное", 
+      probability: Math.round((weatherData.probabilities.normal_pressure || 0) * 100),
+      threshold: "1000-1020 гПа",
+      description: "Стабильные погодные условия"
+    },
+    { 
+      category: "🌀 Давление", 
+      parameter: "Высокое", 
+      probability: Math.round((weatherData.probabilities.high_pressure || 0) * 100),
+      threshold: ">1020 гПа",
+      description: "Антициклон, ясная погода"
+    },
+    
+    // Снег (сезонное)
+    { 
+      category: "❄️ Снег", 
+      parameter: "Сильный снег", 
+      probability: Math.round((weatherData.probabilities.heavy_snow || 0) * 100),
+      threshold: ">10см глубина",
+      description: "Обильный снегопад"
+    },
+    { 
+      category: "❄️ Снег", 
+      parameter: "Умеренный снег", 
+      probability: Math.round((weatherData.probabilities.moderate_snow || 0) * 100),
+      threshold: "2-10см глубина",
+      description: "Средний снегопад"
+    },
+    { 
+      category: "❄️ Снег", 
+      parameter: "Легкий снег", 
+      probability: Math.round((weatherData.probabilities.light_snow || 0) * 100),
+      threshold: "<2см глубина",
+      description: "Небольшой снег"
+    },
+    
+    // === ДОПОЛНИТЕЛЬНЫЕ ДАННЫЕ (менее точные, внизу) ===
+    
+    // Точка росы (дискомфорт от влажности)
+    { 
+      category: "💦 Точка росы", 
+      parameter: "Удушающе", 
+      probability: Math.round((weatherData.probabilities.dew_oppressive || 0) * 100),
+      threshold: ">24°C",
+      description: "Крайне некомфортная влажность"
+    },
+    { 
+      category: "💦 Точка росы", 
+      parameter: "Душно", 
+      probability: Math.round((weatherData.probabilities.dew_muggy || 0) * 100),
+      threshold: "18-24°C",
+      description: "Ощущение духоты"
+    },
+    { 
+      category: "💦 Точка росы", 
+      parameter: "Комфортно", 
+      probability: Math.round((weatherData.probabilities.dew_comfortable || 0) * 100),
+      threshold: "10-18°C",
+      description: "Приятная влажность"
+    },
+    
+    // Влажность воздуха
+    { 
+      category: "💨 Влажность", 
+      parameter: "Очень влажно", 
+      probability: Math.round((weatherData.probabilities.very_humid || 0) * 100),
+      threshold: ">80%",
+      description: "Высокая влажность воздуха"
+    },
+    { 
+      category: "💨 Влажность", 
+      parameter: "Влажно", 
+      probability: Math.round((weatherData.probabilities.humid || 0) * 100),
+      threshold: "60-80%",
+      description: "Повышенная влажность"
+    },
+    { 
+      category: "💨 Влажность", 
+      parameter: "Нормально", 
+      probability: Math.round((weatherData.probabilities.normal_humidity || 0) * 100),
+      threshold: "40-60%",
+      description: "Комфортная влажность"
+    },
+    { 
+      category: "💨 Влажность", 
+      parameter: "Сухо", 
+      probability: Math.round((weatherData.probabilities.dry_air || 0) * 100),
+      threshold: "<40%",
+      description: "Пониженная влажность"
+    },
+  ] : [];
 
   // Функция сортировки
   const handleSort = (key: 'category' | 'parameter' | 'probability' | 'threshold' | 'description') => {
@@ -275,10 +667,17 @@ const Dashboard = () => {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input 
-                    placeholder="Введите локацию" 
+                    placeholder="Введите название города" 
                     className="pl-10"
                     value={location}
-                    onChange={(e) => setLocation(e.target.value)}
+                    onChange={(e) => {
+                      setLocation(e.target.value);
+                      // Если вводим название, очищаем координаты
+                      if (e.target.value.trim()) {
+                        setLatitude("");
+                        setLongitude("");
+                      }
+                    }}
                   />
                 </div>
               </div>
@@ -288,7 +687,13 @@ const Dashboard = () => {
                 <Input 
                   placeholder="Например: 55.7558" 
                   value={latitude}
-                  onChange={(e) => setLatitude(e.target.value)}
+                  onChange={(e) => {
+                    setLatitude(e.target.value);
+                    // Если вводим координаты, очищаем название
+                    if (e.target.value.trim()) {
+                      setLocation("");
+                    }
+                  }}
                 />
               </div>
               
@@ -321,8 +726,31 @@ const Dashboard = () => {
               </div>
               
               <div>
-                <Button variant="nasa" size="default" className="w-full px-2 text-sm">
-                  Анализировать
+                <Button 
+                  variant="nasa" 
+                  size="default" 
+                  className={cn(
+                    "w-full px-2 text-sm relative overflow-hidden transition-all",
+                    isLoading && "animate-pulse"
+                  )}
+                  onClick={handleAnalyze}
+                  disabled={isLoading || (!location.trim() && (!latitude || !longitude)) || !date}
+                  style={{
+                    background: isLoading 
+                      ? 'linear-gradient(90deg, #3b82f6, #8b5cf6, #3b82f6)'
+                      : undefined,
+                    backgroundSize: isLoading ? '200% 100%' : '100% 100%',
+                    animation: isLoading ? 'shimmer 2s infinite' : 'none',
+                  }}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Анализ...
+                    </>
+                  ) : (
+                    'Анализировать'
+                  )}
                 </Button>
               </div>
             </div>
@@ -330,19 +758,71 @@ const Dashboard = () => {
             {/* Second row */}
             <div className="grid gap-4 items-end" style={{gridTemplateColumns: "2fr 1fr 1fr 0.8fr"}}>
               <div className="flex gap-2 items-end w-full">
-                <Button variant="outline" className="flex-1 flex items-center justify-center text-sm px-1">
-                  <MapPin className="w-4 h-4 mr-1" />
-                  <span>Моя локация</span>
+                <Button 
+                  variant="outline" 
+                  className="flex-1 flex items-center justify-center text-sm px-1 flex-shrink-0"
+                  onClick={handleGetMyLocation}
+                  disabled={isLoading}
+                >
+                  <Navigation className="w-4 h-4 mr-1 flex-shrink-0" />
+                  <span className="whitespace-nowrap">Моя локация</span>
                 </Button>
-                <Button variant="outline" className="flex-1 flex items-center justify-center text-sm px-1">
-                  <MapPin className="w-4 h-4 mr-1" />
-                  <span>На карте</span>
-                </Button>
+                
+                <Dialog open={isMapOpen} onOpenChange={setIsMapOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="flex-1 flex items-center justify-center text-sm px-1 flex-shrink-0">
+                      <MapIcon className="w-4 h-4 mr-1 flex-shrink-0" />
+                      <span className="whitespace-nowrap">На карте</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-[90vw] max-h-[90vh] w-full p-0 gap-0 overflow-hidden">
+                    <DialogHeader className="p-4 sm:p-6 pb-2 sm:pb-4">
+                      <DialogTitle className="text-lg sm:text-2xl font-bold">Выберите местоположение на карте</DialogTitle>
+                    </DialogHeader>
+                    <motion.div 
+                      className="h-[70vh] sm:h-[600px] w-full relative overflow-hidden rounded-b-lg"
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <iframe
+                        className="w-full h-full border-0"
+                        loading="lazy"
+                        allowFullScreen
+                        referrerPolicy="no-referrer-when-downgrade"
+                        src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${
+                          latitude && longitude 
+                            ? `${latitude},${longitude}` 
+                            : '41.2995,69.2401'
+                        }&zoom=10`}
+                      />
+                      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10">
+                        <Button 
+                          onClick={() => {
+                            if (latitude && longitude) {
+                              setIsMapOpen(false);
+                            } else {
+                              // Устанавливаем координаты Ташкента по умолчанию
+                              setLatitude("41.2995");
+                              setLongitude("69.2401");
+                              setLocation(""); // Очищаем название при выборе на карте
+                              setIsMapOpen(false);
+                            }
+                          }}
+                          className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 shadow-lg"
+                          size="sm"
+                        >
+                          {latitude && longitude ? 'Закрыть' : 'Выбрать Ташкент'}
+                        </Button>
+                      </div>
+                    </motion.div>
+                  </DialogContent>
+                </Dialog>
                 <Button 
                   variant={unit === "C" ? "default" : "outline"} 
                   size="sm"
                   onClick={() => setUnit("C")}
-                  className="w-10 h-10 px-1 text-xs flex-shrink-0"
+                  className="w-10 h-10 px-1 text-xs flex-shrink-0 min-w-[2.5rem]"
                 >
                   °C
                 </Button>
@@ -350,7 +830,7 @@ const Dashboard = () => {
                   variant={unit === "F" ? "default" : "outline"} 
                   size="sm"
                   onClick={() => setUnit("F")}
-                  className="w-10 h-10 px-1 text-xs flex-shrink-0"
+                  className="w-10 h-10 px-1 text-xs flex-shrink-0 min-w-[2.5rem]"
                 >
                   °F
                 </Button>
@@ -361,7 +841,13 @@ const Dashboard = () => {
                 <Input 
                   placeholder="Например: 37.6173" 
                   value={longitude}
-                  onChange={(e) => setLongitude(e.target.value)}
+                  onChange={(e) => {
+                    setLongitude(e.target.value);
+                    // Если вводим координаты, очищаем название
+                    if (e.target.value.trim()) {
+                      setLocation("");
+                    }
+                  }}
                 />
               </div>
               
@@ -373,67 +859,59 @@ const Dashboard = () => {
                       variant="outline"
                       className={cn(
                         "w-full justify-start text-left font-normal",
-                        !date && "text-muted-foreground"
+                        !dateEnd && "text-muted-foreground"
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {date ? format(date, "PPP", { locale: ru }) : <span>Выберите дату</span>}
+                      {dateEnd ? format(dateEnd, "PPP", { locale: ru }) : <span>Не выбрано (один день)</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
-                      selected={date}
-                      onSelect={setDate}
+                      selected={dateEnd}
+                      onSelect={setDateEnd}
                       initialFocus
                       className="pointer-events-auto"
                       locale={ru}
+                      disabled={(date) => date && date < (date || new Date())}
                     />
                   </PopoverContent>
                 </Popover>
               </div>
-              
-              <div className="flex items-center space-x-2">
-                <input 
-                  type="checkbox" 
-                  id="dateRange" 
-                  className="rounded border-border"
-                />
-                <label htmlFor="dateRange" className="text-sm text-muted-foreground">
-                  Диапазон дат
-                </label>
-              </div>
             </div>
           </div>
 
-          {/* Key Weather Metrics - Apple Weather Style */}
-          <motion.div 
-            className="grid grid-cols-3 gap-4 mb-12"
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
-          >
-            {/* Average Temperature */}
+          {/* Key Weather Metrics - Apple Weather Style - показываем только после анализа */}
+          {showMetrics && (
             <motion.div 
-              className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-2xl p-6 border border-gray-200/50 dark:border-gray-700/50 shadow-lg hover:shadow-xl transition-all duration-300"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.4, delay: 0.1 }}
-              whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
+              className="grid grid-cols-3 gap-4 mb-12"
+              initial={{ opacity: 0, y: -30, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: "auto" }}
+              exit={{ opacity: 0, y: -30, height: 0 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
             >
-              <div className="flex flex-col space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                    ТЕМПЕРАТУРА
+              {/* Average Temperature */}
+              <motion.div 
+                className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-2xl p-6 border border-gray-200/50 dark:border-gray-700/50 shadow-lg hover:shadow-xl transition-all duration-300"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.4, delay: 0.1 }}
+                whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
+              >
+                <div className="flex flex-col space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                      ТЕМПЕРАТУРА
+                    </div>
+                    <Thermometer className="w-5 h-5 text-orange-500" />
                   </div>
-                  <Thermometer className="w-5 h-5 text-orange-500" />
-                </div>
-                <div className="flex items-baseline space-x-1">
-                  <span className="text-4xl font-light text-gray-900 dark:text-white">
-                    {Math.round(weatherMetrics.averageTemp)}
-                  </span>
-                  <span className="text-2xl font-light text-gray-500 dark:text-gray-400">
-                    °{unit}
+                  <div className="flex items-baseline space-x-1">
+                    <span className="text-4xl font-light text-gray-900 dark:text-white">
+                      {Math.round(weatherMetrics.averageTemp)}
+                    </span>
+                    <span className="text-2xl font-light text-gray-500 dark:text-gray-400">
+                      °{unit}
                   </span>
                 </div>
                 <div className="text-sm text-gray-500 dark:text-gray-400">
@@ -518,6 +996,7 @@ const Dashboard = () => {
               </div>
             </motion.div>
           </motion.div>
+          )}
 
           {/* Results Overview */}
           <div className="mb-12">
@@ -532,79 +1011,82 @@ const Dashboard = () => {
 
             {/* Comfort Index */}
             <div className={`rounded-lg p-6 mb-8 border transition-all duration-500 ${
-              68 >= 80 ? 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950 border-green-200 dark:border-green-800' :
-              68 >= 60 ? 'bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-blue-200 dark:border-blue-800' :
-              68 >= 40 ? 'bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950 dark:to-amber-950 border-yellow-200 dark:border-yellow-800' :
-              'bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-950 dark:to-rose-950 border-red-200 dark:border-red-800'
+              comfortIndex !== null && comfortIndex >= 80 ? 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950 border-green-200 dark:border-green-800' :
+              comfortIndex !== null && comfortIndex >= 60 ? 'bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-blue-200 dark:border-blue-800' :
+              comfortIndex !== null && comfortIndex >= 40 ? 'bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950 dark:to-amber-950 border-yellow-200 dark:border-yellow-800' :
+              comfortIndex !== null ? 'bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-950 dark:to-rose-950 border-red-200 dark:border-red-800' :
+              'bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-950 dark:to-slate-950 border-gray-200 dark:border-gray-800'
             }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                   <div className={`p-3 rounded-full transition-all duration-500 ${
-                    68 >= 80 ? 'bg-green-500' :
-                    68 >= 60 ? 'bg-blue-500' :
-                    68 >= 40 ? 'bg-yellow-500' :
-                    'bg-red-500'
+                    comfortIndex !== null && comfortIndex >= 80 ? 'bg-green-500' :
+                    comfortIndex !== null && comfortIndex >= 60 ? 'bg-blue-500' :
+                    comfortIndex !== null && comfortIndex >= 40 ? 'bg-yellow-500' :
+                    comfortIndex !== null ? 'bg-red-500' : 'bg-gray-500'
                   }`}>
                     <Sun className="w-8 h-8 text-white" />
                   </div>
                   <div>
                     <h3 className={`text-2xl font-bold transition-colors duration-500 ${
-                      68 >= 80 ? 'text-green-900 dark:text-green-100' :
-                      68 >= 60 ? 'text-blue-900 dark:text-blue-100' :
-                      68 >= 40 ? 'text-yellow-900 dark:text-yellow-100' :
-                      'text-red-900 dark:text-red-100'
+                      comfortIndex !== null && comfortIndex >= 80 ? 'text-green-900 dark:text-green-100' :
+                      comfortIndex !== null && comfortIndex >= 60 ? 'text-blue-900 dark:text-blue-100' :
+                      comfortIndex !== null && comfortIndex >= 40 ? 'text-yellow-900 dark:text-yellow-100' :
+                      comfortIndex !== null ? 'text-red-900 dark:text-red-100' : 'text-gray-900 dark:text-gray-100'
                     }`}>Индекс Комфорта</h3>
                     <p className={`transition-colors duration-500 ${
-                      68 >= 80 ? 'text-green-700 dark:text-green-300' :
-                      68 >= 60 ? 'text-blue-700 dark:text-blue-300' :
-                      68 >= 40 ? 'text-yellow-700 dark:text-yellow-300' :
-                      'text-red-700 dark:text-red-300'
+                      comfortIndex !== null && comfortIndex >= 80 ? 'text-green-700 dark:text-green-300' :
+                      comfortIndex !== null && comfortIndex >= 60 ? 'text-blue-700 dark:text-blue-300' :
+                      comfortIndex !== null && comfortIndex >= 40 ? 'text-yellow-700 dark:text-yellow-300' :
+                      comfortIndex !== null ? 'text-red-700 dark:text-red-300' : 'text-gray-700 dark:text-gray-300'
                     }`}>Общая оценка погодных условий</p>
                   </div>
                 </div>
                 <div className="text-right">
                   <div className={`text-4xl font-bold mb-1 transition-colors duration-500 ${
-                    68 >= 80 ? 'text-green-600 dark:text-green-400' :
-                    68 >= 60 ? 'text-blue-600 dark:text-blue-400' :
-                    68 >= 40 ? 'text-yellow-600 dark:text-yellow-400' :
-                    'text-red-600 dark:text-red-400'
+                    comfortIndex !== null && comfortIndex >= 80 ? 'text-green-600 dark:text-green-400' :
+                    comfortIndex !== null && comfortIndex >= 60 ? 'text-blue-600 dark:text-blue-400' :
+                    comfortIndex !== null && comfortIndex >= 40 ? 'text-yellow-600 dark:text-yellow-400' :
+                    comfortIndex !== null ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'
                   }`}>
-                    68/100
+                    {comfortIndex !== null ? `${comfortIndex}/100` : '?/100'}
                   </div>
                   <div className="flex items-center space-x-2">
                     <div className={`w-32 rounded-full h-3 transition-colors duration-500 ${
-                      68 >= 80 ? 'bg-green-200 dark:bg-green-800' :
-                      68 >= 60 ? 'bg-blue-200 dark:bg-blue-800' :
-                      68 >= 40 ? 'bg-yellow-200 dark:bg-yellow-800' :
-                      'bg-red-200 dark:bg-red-800'
+                      comfortIndex !== null && comfortIndex >= 80 ? 'bg-green-200 dark:bg-green-800' :
+                      comfortIndex !== null && comfortIndex >= 60 ? 'bg-blue-200 dark:bg-blue-800' :
+                      comfortIndex !== null && comfortIndex >= 40 ? 'bg-yellow-200 dark:bg-yellow-800' :
+                      comfortIndex !== null ? 'bg-red-200 dark:bg-red-800' : 'bg-gray-200 dark:bg-gray-800'
                     }`}>
                       <div 
                         className={`h-3 rounded-full transition-all duration-700 ${
-                          68 >= 80 ? 'bg-gradient-to-r from-green-500 to-green-600' :
-                          68 >= 60 ? 'bg-gradient-to-r from-blue-500 to-blue-600' :
-                          68 >= 40 ? 'bg-gradient-to-r from-yellow-500 to-yellow-600' :
-                          'bg-gradient-to-r from-red-500 to-red-600'
+                          comfortIndex !== null && comfortIndex >= 80 ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                          comfortIndex !== null && comfortIndex >= 60 ? 'bg-gradient-to-r from-blue-500 to-blue-600' :
+                          comfortIndex !== null && comfortIndex >= 40 ? 'bg-gradient-to-r from-yellow-500 to-yellow-600' :
+                          comfortIndex !== null ? 'bg-gradient-to-r from-red-500 to-red-600' : 'bg-gradient-to-r from-gray-500 to-gray-600'
                         }`}
-                        style={{ width: '68%' }}
+                        style={{ width: comfortIndex !== null ? `${comfortIndex}%` : '0%' }}
                       />
                     </div>
                     <span className={`text-sm font-medium transition-colors duration-500 ${
-                      68 >= 80 ? 'text-green-600 dark:text-green-400' :
-                      68 >= 60 ? 'text-blue-600 dark:text-blue-400' :
-                      68 >= 40 ? 'text-yellow-600 dark:text-yellow-400' :
-                      'text-red-600 dark:text-red-400'
+                      comfortIndex !== null && comfortIndex >= 80 ? 'text-green-600 dark:text-green-400' :
+                      comfortIndex !== null && comfortIndex >= 60 ? 'text-blue-600 dark:text-blue-400' :
+                      comfortIndex !== null && comfortIndex >= 40 ? 'text-yellow-600 dark:text-yellow-400' :
+                      comfortIndex !== null ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'
                     }`}>
-                      {68 >= 80 ? 'Отлично' :
-                       68 >= 60 ? 'Комфортно' :
-                       68 >= 40 ? 'Удовлетворительно' :
-                       'Некомфортно'}
+                      {comfortIndex !== null ? (
+                        comfortIndex >= 80 ? 'Отлично' :
+                        comfortIndex >= 60 ? 'Комфортно' :
+                        comfortIndex >= 40 ? 'Удовлетворительно' :
+                        'Некомфортно'
+                      ) : 'Неизвестно'}
                     </span>
                   </div>
                   <p className={`text-xs mt-1 transition-colors duration-500 ${
-                    68 >= 80 ? 'text-green-600 dark:text-green-400' :
-                    68 >= 60 ? 'text-blue-600 dark:text-blue-400' :
-                    68 >= 40 ? 'text-yellow-600 dark:text-yellow-400' :
-                    'text-red-600 dark:text-red-400'
+                    comfortIndex !== null && comfortIndex >= 80 ? 'text-green-600 dark:text-green-400' :
+                    comfortIndex !== null && comfortIndex >= 60 ? 'text-blue-600 dark:text-blue-400' :
+                    comfortIndex !== null && comfortIndex >= 40 ? 'text-yellow-600 dark:text-yellow-400' :
+                    comfortIndex !== null ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'
                   }`}>
                     Учитывает температуру, влажность, ветер и осадки
                   </p>
@@ -613,7 +1095,7 @@ const Dashboard = () => {
             </div>
             
             <div className="grid grid-cols-5 gap-6 items-stretch">
-              {weatherData.map((data, index) => (
+              {weatherCards.map((data, index) => (
                 <motion.div 
                   key={index} 
                   className="min-h-[300px] flex"

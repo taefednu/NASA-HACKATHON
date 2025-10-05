@@ -127,7 +127,6 @@ const About = () => {
                   <ul className="space-y-2 text-muted-foreground">
                     <li>• Цельсий (°C) - По умолчанию</li>
                     <li>• Фаренгейт (°F) - Опционально</li>
-                    <li>• Кельвин (K) - Формат исходных данных</li>
                   </ul>
                 </div>
                 <div>
@@ -150,7 +149,7 @@ const About = () => {
                   <ul className="space-y-2 text-muted-foreground">
                     <li>• Процент (0-100%)</li>
                     <li>• На основе исторических данных</li>
-                    <li>• Окно данных 10+ лет</li>
+                    <li>• Окно данных 25+ лет</li>
                   </ul>
                 </div>
               </div>
