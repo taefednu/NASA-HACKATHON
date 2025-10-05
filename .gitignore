@@ -2,8 +2,11 @@
 
 # dependencies
 node_modules/
+**/venv/ # Python virtual environment in any directory
 venv/ # Python virtual environment
+**/env/ # Python virtual environment in any directory
 env/ # Python virtual environment
+**/__pycache__/
 __pycache__/
 *.pyc
 *.pyo
