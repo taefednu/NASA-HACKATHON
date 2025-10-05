@@ -75,24 +75,24 @@ const Index = () => {
               </div>
               
               <h1 className="text-5xl md:text-7xl font-bold mb-6 text-white leading-tight font-heading">
-                Пойдёт Ли Дождь На Мой Парад?
+                Will It Rain On My Parade?
               </h1>
               
               <p className="text-xl md:text-2xl mb-8 text-white/90 font-light italic max-w-3xl mx-auto">
-                Изучите вероятность экстремальной погоды для ваших планов, используя данные наблюдения Земли NASA.
+                Explore extreme weather probabilities for your plans using NASA Earth observation data.
               </p>
               
               <div className="flex justify-center mb-8">
                 <Button asChild variant="hero" size="xl" className="group bg-orange-500 hover:bg-orange-400 text-white font-semibold shadow-lg shadow-orange-500/60 hover:shadow-orange-500/80 hover:shadow-2xl border-2 border-orange-400 hover:border-orange-300 transition-all duration-300 transform hover:scale-105">
                   <Link to="/dashboard">
-                    Начать Анализ
+                    Start Analysis
                     <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                   </Link>
                 </Button>
               </div>
 
               <div className="flex justify-center gap-2 mb-4 flex-wrap px-6 py-2">
-                {/* Жара */}
+                {/* Heat */}
                 <motion.div 
                   className="bg-orange-500/50 backdrop-blur-md px-6 py-2 rounded-md border border-orange-400/70 flex items-center gap-2 hover:bg-orange-500/60 hover:border-orange-400/90 transition-all duration-300 cursor-pointer shadow-lg shadow-orange-500/35 hover:shadow-orange-500/55 w-[130px] justify-center neon-orange"
                   animate={{
@@ -102,10 +102,10 @@ const Index = () => {
                   transition={{ duration: 8, repeat: Infinity, ease: "easeInOut", delay: 0 }}
                 >
                   <Sun className="w-4 h-4 text-orange-200 drop-shadow-lg flex-shrink-0" />
-                  <span className="text-xs font-normal text-orange-100 drop-shadow-lg">Жара</span>
+                  <span className="text-xs font-normal text-orange-100 drop-shadow-lg">Heat</span>
                 </motion.div>
                 
-                {/* Холод */}
+                {/* Cold */}
                 <motion.div 
                   className="bg-cyan-400/30 backdrop-blur-md px-6 py-2 rounded-md border border-cyan-300/50 flex items-center gap-2 hover:bg-cyan-400/40 hover:border-cyan-300/70 transition-all duration-300 cursor-pointer shadow-lg shadow-cyan-400/25 hover:shadow-cyan-400/40 w-[130px] justify-center neon-cyan"
                   animate={{
@@ -115,10 +115,10 @@ const Index = () => {
                   transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
                 >
                   <Snowflake className="w-4 h-4 text-cyan-200 drop-shadow-lg flex-shrink-0" />
-                  <span className="text-xs font-normal text-cyan-100 drop-shadow-lg">Холод</span>
+                  <span className="text-xs font-normal text-cyan-100 drop-shadow-lg">Cold</span>
                 </motion.div>
                 
-                {/* Ветер */}
+                {/* Wind */}
                 <motion.div 
                   className="bg-green-400/30 backdrop-blur-md px-6 py-2 rounded-md border border-green-300/50 flex items-center gap-2 hover:bg-green-400/40 hover:border-green-300/70 transition-all duration-300 cursor-pointer shadow-lg shadow-green-400/25 hover:shadow-green-400/40 w-[130px] justify-center neon-green"
                   animate={{
@@ -128,10 +128,10 @@ const Index = () => {
                   transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 2 }}
                 >
                   <Wind className="w-4 h-4 text-green-200 drop-shadow-lg flex-shrink-0" />
-                  <span className="text-xs font-normal text-green-100 drop-shadow-lg">Ветер</span>
+                  <span className="text-xs font-normal text-green-100 drop-shadow-lg">Wind</span>
                 </motion.div>
                 
-                {/* Влага */}
+                {/* Moisture */}
                 <motion.div 
                   className="bg-purple-400/30 backdrop-blur-md px-6 py-2 rounded-md border border-purple-300/50 flex items-center gap-2 hover:bg-purple-400/40 hover:border-purple-300/70 transition-all duration-300 cursor-pointer shadow-lg shadow-purple-400/25 hover:shadow-purple-400/40 w-[130px] justify-center neon-purple"
                   animate={{
@@ -141,10 +141,10 @@ const Index = () => {
                   transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 3 }}
                 >
                   <Droplets className="w-4 h-4 text-purple-200 drop-shadow-lg flex-shrink-0" />
-                  <span className="text-xs font-normal text-purple-100 drop-shadow-lg">Влага</span>
+                  <span className="text-xs font-normal text-purple-100 drop-shadow-lg">Moisture</span>
                 </motion.div>
                 
-                {/* Дискомфорт */}
+                {/* Discomfort */}
                 <motion.div 
                   className="bg-yellow-400/30 backdrop-blur-md px-6 py-2 rounded-md border border-yellow-300/50 flex items-center gap-2 hover:bg-yellow-400/40 hover:border-yellow-300/70 transition-all duration-300 cursor-pointer shadow-lg shadow-yellow-400/25 hover:shadow-yellow-400/40 w-[130px] justify-center neon-yellow"
                   animate={{
@@ -154,7 +154,7 @@ const Index = () => {
                   transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 4 }}
                 >
                   <Frown className="w-4 h-4 text-yellow-200 drop-shadow-lg flex-shrink-0" />
-                  <span className="text-xs font-normal text-yellow-100 drop-shadow-lg">Дискомфорт</span>
+                  <span className="text-xs font-normal text-yellow-100 drop-shadow-lg">Discomfort</span>
                 </motion.div>
               </div>
             </div>
@@ -166,28 +166,28 @@ const Index = () => {
           <div className="container mx-auto px-4">
             <div className="text-center mb-12 animate-slide-up">
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Планируйте Умнее с Данными NASA
+                Plan Smarter with NASA Data
               </h2>
               <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                Десятилетия исторических климатических записей помогут вам выбрать идеальный день для ваших приключений
+                Decades of historical climate records help you choose the perfect day for your adventures
               </p>
             </div>
             
             <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
               {[
                 {
-                  title: "Исторический Анализ",
-                  description: "Доступ к десятилетиям данных наблюдения Земли NASA для понимания погодных паттернов",
+                  title: "Historical Analysis",
+                  description: "Access decades of NASA Earth observation data to understand weather patterns",
                   icon: BarChart3
                 },
                 {
-                  title: "5 Ключевых Метрик",
-                  description: "Отслеживание температуры, влажности, ветра и индексов комфорта для любой локации",
+                  title: "5 Key Metrics",
+                  description: "Track temperature, humidity, wind, and comfort indices for any location",
                   icon: Thermometer
                 },
                 {
-                  title: "Интерактивные Карты",
-                  description: "Визуализация вероятностей погоды с красивыми тепловыми картами",
+                  title: "Interactive Maps",
+                  description: "Visualize weather probabilities with beautiful heat maps",
                   icon: MapPin
                 }
               ].map((feature, index) => (
@@ -236,14 +236,14 @@ const Index = () => {
           
           <div className="container mx-auto px-4 text-center relative z-10">
             <h2 className="text-3xl md:text-4xl font-bold mb-6 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.3)] shadow-white/20">
-              Готовы Проверить Погоду?
+              Ready to Check the Weather?
             </h2>
             <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]">
-              Начните свой первый анализ погоды и откройте для себя мощь данных наблюдения Земли NASA
+              Start your first weather analysis and discover the power of NASA Earth observation data
             </p>
             <Button asChild variant="hero" size="xl" className="bg-orange-500 hover:bg-orange-400 text-white font-semibold shadow-lg shadow-orange-500/70 hover:shadow-orange-500/90 hover:shadow-2xl border-2 border-orange-400 hover:border-orange-300 transition-all duration-300 transform hover:scale-105 drop-shadow-[0_0_15px_rgba(249,115,22,0.6)]">
               <Link to="/dashboard">
-                Перейти к Панели
+                Go to Dashboard
                 <ArrowRight className="w-5 h-5" />
               </Link>
             </Button>
@@ -253,7 +253,7 @@ const Index = () => {
       
       <footer className="bg-card border-t border-border py-8">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>Данные предоставлены NASA Earth Observations (MERRA-2, MODIS, GPM)</p>
+          <p>Data provided by NASA Earth Observations (MERRA-2, MODIS, GPM)</p>
           <p className="mt-2">NASA Space Apps Challenge 2025 • MIT License</p>
         </div>
       </footer>

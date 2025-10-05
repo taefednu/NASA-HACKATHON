@@ -16,21 +16,21 @@ const Why = () => {
             <div className="grid lg:grid-cols-2 gap-12 items-center mb-16 animate-fade-in">
               <div>
                 <h1 className="text-4xl md:text-5xl font-bold mb-6 leading-tight">
-                  Почему Это Важно
+                  Why It Matters
                 </h1>
                 <div className="space-y-4 text-lg text-muted-foreground">
                   <p>
-                    Каждый мечтает об идеальной погоде для своего особенного дня — свадьбы, концерта, 
-                    горного похода. Но планета не всегда сотрудничает.
+                    Everyone dreams of perfect weather for their special day—a wedding, concert, 
+                    mountain hike. But the planet doesn't always cooperate.
                   </p>
                   <p>
-                    Наш инструмент помогает вам <span className="font-semibold text-foreground">планировать умнее</span>, используя 
-                    десятилетия метеоданных NASA, чтобы выбрать лучший день для вашего приключения.
+                    Our tool helps you <span className="font-semibold text-foreground">plan smarter</span>, using 
+                    decades of NASA weather data to choose the best day for your adventure.
                   </p>
                   <p>
-                    Понимая исторические погодные паттерны, вы можете минимизировать риск того, что экстремальные 
-                    условия нарушат ваши важные моменты, и принимать обоснованные решения о том, когда 
-                    планировать активности на открытом воздухе.
+                    By understanding historical weather patterns, you can minimize the risk of extreme 
+                    conditions disrupting your important moments and make informed decisions about when 
+                    to plan outdoor activities.
                   </p>
                 </div>
               </div>
@@ -38,7 +38,7 @@ const Why = () => {
               <div className="rounded-lg overflow-hidden shadow-hover">
                 <img 
                   src={whyImage} 
-                  alt="Люди наслаждаются активностями на открытом воздухе при различных погодных условиях" 
+                  alt="People enjoying outdoor activities in various weather conditions" 
                   className="w-full h-auto object-cover"
                 />
               </div>
@@ -46,26 +46,26 @@ const Why = () => {
 
             {/* Use Cases */}
             <div className="mb-16 animate-slide-up">
-              <h2 className="text-3xl font-bold text-center mb-12">Кто Получает Выгоду?</h2>
+              <h2 className="text-3xl font-bold text-center mb-12">Who Benefits?</h2>
               <div className="grid md:grid-cols-3 gap-8">
                 {[
                   {
-                    title: "Организаторы Мероприятий",
-                    description: "Выбирайте оптимальную дату для свадеб на открытом воздухе, фестивалей и корпоративных мероприятий, чтобы минимизировать погодные срывы.",
+                    title: "Event Organizers",
+                    description: "Choose optimal dates for outdoor weddings, festivals, and corporate events to minimize weather disruptions.",
                     icon: Calendar,
-                    examples: ["Свадьбы", "Фестивали", "Корпоративы"]
+                    examples: ["Weddings", "Festivals", "Corporate Events"]
                   },
                   {
-                    title: "Путешественники и Искатели Приключений",
-                    description: "Планируйте походы, пляжный отдых и приключения на открытом воздухе, когда условия наиболее благоприятны.",
+                    title: "Travelers & Adventure Seekers",
+                    description: "Plan hikes, beach vacations, and outdoor adventures when conditions are most favorable.",
                     icon: MapPin,
-                    examples: ["Походы", "Пляжный Отдых", "Кемпинг"]
+                    examples: ["Hiking", "Beach Vacation", "Camping"]
                   },
                   {
-                    title: "Организации",
-                    description: "Планируйте мероприятия на открытом воздухе, спортивные события и общественные собрания с уверенностью в погодных условиях.",
+                    title: "Organizations",
+                    description: "Schedule outdoor events, sports competitions, and community gatherings with confidence in weather conditions.",
                     icon: Cloud,
-                    examples: ["Спортивные События", "Парады", "Общественные Собрания"]
+                    examples: ["Sports Events", "Parades", "Community Gatherings"]
                   }
                 ].map((useCase, index) => (
                   <div 
@@ -92,24 +92,24 @@ const Why = () => {
 
             {/* Impact Section */}
             <div className="bg-gradient-to-br from-primary/10 to-secondary/10 rounded-lg p-8 md:p-12 mb-16 animate-slide-up border border-primary/20">
-              <h2 className="text-3xl font-bold mb-6 text-center">Реальное Воздействие</h2>
+              <h2 className="text-3xl font-bold mb-6 text-center">Real Impact</h2>
               <div className="grid md:grid-cols-2 gap-8">
                 <div>
-                  <h3 className="text-xl font-semibold mb-3 text-primary">Экономические Преимущества</h3>
+                  <h3 className="text-xl font-semibold mb-3 text-primary">Economic Benefits</h3>
                   <ul className="space-y-2 text-muted-foreground">
-                    <li>✓ Сокращение дорогостоящих отмен и переносов мероприятий</li>
-                    <li>✓ Оптимизация бизнес-операций на открытом воздухе</li>
-                    <li>✓ Минимизация финансовых потерь, связанных с погодой</li>
-                    <li>✓ Повышение удовлетворенности клиентов через лучшее планирование</li>
+                    <li>✓ Reduce costly event cancellations and rescheduling</li>
+                    <li>✓ Optimize outdoor business operations</li>
+                    <li>✓ Minimize weather-related financial losses</li>
+                    <li>✓ Increase customer satisfaction through better planning</li>
                   </ul>
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold mb-3 text-secondary">Безопасность и Комфорт</h3>
+                  <h3 className="text-xl font-semibold mb-3 text-secondary">Safety & Comfort</h3>
                   <ul className="space-y-2 text-muted-foreground">
-                    <li>✓ Избегайте воздействия экстремальной жары или холода</li>
-                    <li>✓ Защитите уязвимые группы населения от суровых условий</li>
-                    <li>✓ Планируйте безопасные активности на открытом воздухе для детей и пожилых</li>
-                    <li>✓ Снижайте риски для здоровья от погодных экстремумов</li>
+                    <li>✓ Avoid exposure to extreme heat or cold</li>
+                    <li>✓ Protect vulnerable populations from harsh conditions</li>
+                    <li>✓ Plan safe outdoor activities for children and elderly</li>
+                    <li>✓ Reduce health risks from weather extremes</li>
                   </ul>
                 </div>
               </div>
@@ -118,10 +118,10 @@ const Why = () => {
             {/* Statistics */}
             <div className="grid md:grid-cols-4 gap-6 mb-16 animate-slide-up">
               {[
-                { number: "10+", label: "Лет Данных" },
-                { number: "5", label: "Метрик Погоды" },
-                { number: "365", label: "Дней Проанализировано" },
-                { number: "∞", label: "Локаций" }
+                { number: "10+", label: "Years of Data" },
+                { number: "5", label: "Weather Metrics" },
+                { number: "365", label: "Days Analyzed" },
+                { number: "∞", label: "Locations" }
               ].map((stat, index) => (
                 <div key={index} className="text-center p-6 bg-card rounded-lg shadow-card border border-border">
                   <div className="text-4xl font-bold text-primary mb-2">{stat.number}</div>
@@ -133,14 +133,14 @@ const Why = () => {
             {/* CTA */}
             <div className="text-center gradient-hero rounded-lg p-12 animate-slide-up">
               <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
-                Готовы Планировать Умнее?
+                Ready to Plan Smarter?
               </h2>
               <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
-                Начните анализировать вероятности погоды для вашего следующего важного события
+                Start analyzing weather probabilities for your next important event
               </p>
               <Button asChild variant="hero" size="xl">
                 <Link to="/dashboard">
-                  Попробовать Сейчас
+                  Try Now
                   <ArrowRight className="w-5 h-5" />
                 </Link>
               </Button>

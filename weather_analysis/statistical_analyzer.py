@@ -1026,10 +1026,23 @@ class StatisticalAnalyzer:
             }
         
         # ===== ВОЗВРАТ С ОБРАТНОЙ СОВМЕСТИМОСТЬЮ =====
+        # Копируем все вероятности из main_features в плоскую структуру probabilities
+        flat_probabilities = old_summary.copy()
+        
+        # Копируем все подкategории из main_features
+        for feature_name, categories in main_features.items():
+            for category_name, probability in categories.items():
+                flat_probabilities[category_name] = probability
+        
+        # Копируем вероятности из additional_features
+        for feature_name, feature_data in additional_features.items():
+            if 'probability' in feature_data:
+                flat_probabilities[feature_data['category']] = feature_data['probability']
+        
         return {
             'day_of_year': day_of_year,
             'date_example': full_analysis['date_example'],
-            'probabilities': old_summary,  # Старая структура - 8 ключевых категорий
+            'probabilities': flat_probabilities,  # Теперь содержит ВСЕ вероятности
             'main_features': main_features,  # Новая структура - 8 блоков со всеми категориями
             'additional_features': additional_features,  # Новая структура - 12 признаков с лучшей категорией
             'statistics': full_analysis['statistics']

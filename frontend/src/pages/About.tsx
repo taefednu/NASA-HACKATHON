@@ -12,9 +12,9 @@ const About = () => {
       <main className="pt-24 pb-12">
         <div className="container mx-auto px-4 max-w-4xl">
           <div className="mb-12 text-center animate-fade-in">
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">О Проекте & Методология</h1>
+            <h1 className="text-4xl md:text-5xl font-bold mb-4">About Project & Methodology</h1>
             <p className="text-xl text-muted-foreground">
-              Понимание того, как мы анализируем вероятности экстремальной погоды
+              Understanding how we analyze extreme weather probabilities
             </p>
           </div>
 
@@ -23,25 +23,25 @@ const About = () => {
             <Card className="p-8 shadow-card animate-slide-up">
               <div className="grid md:grid-cols-2 gap-8 items-center">
                 <div>
-                  <h2 className="text-2xl font-bold mb-4">Наш Подход</h2>
+                  <h2 className="text-2xl font-bold mb-4">Our Approach</h2>
                   <p className="text-muted-foreground mb-4">
-                    Это приложение использует данные наблюдения Земли NASA для оценки исторической вероятности 
-                    экстремальных погодных условий для выбранной даты и локации.
+                    This application uses NASA Earth observation data to assess the historical probability 
+                    of extreme weather conditions for a selected date and location.
                   </p>
                   <p className="text-muted-foreground mb-4">
-                    Оно не предоставляет прогнозы, а статистические данные на основе десятилетий климатических записей. 
-                    Это позволяет принимать обоснованные решения о планировании важных событий.
+                    It doesn't provide forecasts, but statistical data based on decades of climate records. 
+                    This allows you to make informed decisions about planning important events.
                   </p>
                   <p className="text-muted-foreground">
-                    Наш анализ учитывает множество метеорологических параметров, включая температуру, влажность, 
-                    скорость ветра и индексы комфорта, чтобы дать полное представление о потенциальных 
-                    погодных условиях.
+                    Our analysis considers multiple meteorological parameters, including temperature, humidity, 
+                    wind speed, and comfort indices to give a complete picture of potential 
+                    weather conditions.
                   </p>
                 </div>
                 <div className="rounded-lg overflow-hidden">
                   <img 
                     src={satelliteImage} 
-                    alt="Спутник NASA, собирающий данные наблюдения Земли" 
+                    alt="NASA satellite collecting Earth observation data" 
                     className="w-full h-auto object-cover"
                   />
                 </div>
@@ -50,22 +50,22 @@ const About = () => {
 
             {/* Data Sources */}
             <Card className="p-8 shadow-card animate-slide-up">
-              <h2 className="text-2xl font-bold mb-6">Источники Данных</h2>
+              <h2 className="text-2xl font-bold mb-6">Data Sources</h2>
               <div className="grid md:grid-cols-3 gap-6">
                 {[
                   {
                     name: "MERRA-2",
-                    description: "Современный ретроспективный анализ для исследований и приложений",
+                    description: "Modern-Era Retrospective analysis for Research and Applications",
                     icon: "🛰️"
                   },
                   {
                     name: "MODIS",
-                    description: "Спектрорадиометр среднего разрешения",
+                    description: "Moderate Resolution Imaging Spectroradiometer",
                     icon: "📡"
                   },
                   {
                     name: "GPM",
-                    description: "Миссия глобального измерения осадков",
+                    description: "Global Precipitation Measurement Mission",
                     icon: "🌧️"
                   }
                 ].map((source, index) => (
@@ -80,33 +80,33 @@ const About = () => {
 
             {/* Variables Explained */}
             <Card className="p-8 shadow-card animate-slide-up">
-              <h2 className="text-2xl font-bold mb-6">Погодные Переменные</h2>
+              <h2 className="text-2xl font-bold mb-6">Weather Variables</h2>
               <div className="space-y-4">
                 {[
                   {
-                    title: "Очень Жарко",
-                    description: "Вероятность температур выше 35°C (95°F), которые могут вызвать тепловой стресс и дискомфорт.",
-                    threshold: "Температура > 35°C"
+                    title: "Very Hot",
+                    description: "Probability of temperatures above 35°C (95°F), which can cause heat stress and discomfort.",
+                    threshold: "Temperature > 35°C"
                   },
                   {
-                    title: "Очень Холодно",
-                    description: "Вероятность падения температур ниже 0°C (32°F), потенциально вызывающих замерзание.",
-                    threshold: "Температура < 0°C"
+                    title: "Very Cold",
+                    description: "Probability of temperatures dropping below 0°C (32°F), potentially causing freezing.",
+                    threshold: "Temperature < 0°C"
                   },
                   {
-                    title: "Очень Ветрено",
-                    description: "Вероятность скорости ветра выше 10 м/с (~22 миль/ч), что может повлиять на активности на открытом воздухе.",
-                    threshold: "Скорость Ветра > 10 м/с"
+                    title: "Very Windy",
+                    description: "Probability of wind speeds above 10 m/s (~22 mph), which can affect outdoor activities.",
+                    threshold: "Wind Speed > 10 m/s"
                   },
                   {
-                    title: "Очень Влажно",
-                    description: "Вероятность относительной влажности выше 80%, что может сделать температуру более экстремальной.",
-                    threshold: "Относительная Влажность > 80%"
+                    title: "Very Wet",
+                    description: "Probability of relative humidity above 80%, which can make temperatures feel more extreme.",
+                    threshold: "Relative Humidity > 80%"
                   },
                   {
-                    title: "Дискомфортно",
-                    description: "Комбинированный индекс, учитывающий температуру, влажность и ветер для оценки общего комфорта.",
-                    threshold: "Превышение порога теплового индекса или ощущения холода"
+                    title: "Uncomfortable",
+                    description: "Combined index considering temperature, humidity, and wind to assess overall comfort.",
+                    threshold: "Exceeding heat index or feels-like cold threshold"
                   }
                 ].map((variable, index) => (
                   <div key={index} className="border-l-4 border-primary pl-4 py-2">
@@ -120,36 +120,36 @@ const About = () => {
 
             {/* Units & Calculations */}
             <Card className="p-8 shadow-card animate-slide-up">
-              <h2 className="text-2xl font-bold mb-4">Единицы Измерения</h2>
+              <h2 className="text-2xl font-bold mb-4">Units of Measurement</h2>
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
-                  <h3 className="font-semibold mb-3">Температура</h3>
+                  <h3 className="font-semibold mb-3">Temperature</h3>
                   <ul className="space-y-2 text-muted-foreground">
-                    <li>• Цельсий (°C) - По умолчанию</li>
-                    <li>• Фаренгейт (°F) - Опционально</li>
+                    <li>• Celsius (°C) - Default</li>
+                    <li>• Fahrenheit (°F) - Optional</li>
                   </ul>
                 </div>
                 <div>
-                  <h3 className="font-semibold mb-3">Скорость Ветра</h3>
+                  <h3 className="font-semibold mb-3">Wind Speed</h3>
                   <ul className="space-y-2 text-muted-foreground">
-                    <li>• Метры в секунду (м/с) - По умолчанию</li>
-                    <li>• Километры в час (км/ч)</li>
-                    <li>• Мили в час (миль/ч)</li>
+                    <li>• Meters per second (m/s) - Default</li>
+                    <li>• Kilometers per hour (km/h)</li>
+                    <li>• Miles per hour (mph)</li>
                   </ul>
                 </div>
                 <div>
-                  <h3 className="font-semibold mb-3">Влажность</h3>
+                  <h3 className="font-semibold mb-3">Humidity</h3>
                   <ul className="space-y-2 text-muted-foreground">
-                    <li>• Относительная Влажность (%)</li>
-                    <li>• Удельная Влажность (г/кг)</li>
+                    <li>• Relative Humidity (%)</li>
+                    <li>• Specific Humidity (g/kg)</li>
                   </ul>
                 </div>
                 <div>
-                  <h3 className="font-semibold mb-3">Вероятность</h3>
+                  <h3 className="font-semibold mb-3">Probability</h3>
                   <ul className="space-y-2 text-muted-foreground">
-                    <li>• Процент (0-100%)</li>
-                    <li>• На основе исторических данных</li>
-                    <li>• Окно данных 25+ лет</li>
+                    <li>• Percentage (0-100%)</li>
+                    <li>• Based on historical data</li>
+                    <li>• 25+ year data window</li>
                   </ul>
                 </div>
               </div>
@@ -157,7 +157,7 @@ const About = () => {
 
             {/* Learn More */}
             <div className="text-center py-8">
-              <h3 className="text-xl font-semibold mb-4">Хотите Узнать Больше?</h3>
+              <h3 className="text-xl font-semibold mb-4">Want to Learn More?</h3>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button variant="nasa" asChild>
                   <a href="https://earthdata.nasa.gov" target="_blank" rel="noopener noreferrer">
@@ -167,7 +167,7 @@ const About = () => {
                 </Button>
                 <Button variant="outline" asChild>
                   <a href="https://www.nasa.gov/mission_pages/GPM/main/index.html" target="_blank" rel="noopener noreferrer">
-                    Миссия GPM
+                    GPM Mission
                     <ExternalLink className="w-4 h-4" />
                   </a>
                 </Button>

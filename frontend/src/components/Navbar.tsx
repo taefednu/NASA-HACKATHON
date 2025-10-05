@@ -6,11 +6,10 @@ const Navbar = () => {
   const location = useLocation();
   
   const links = [
-    { name: "Главная", path: "/" },
-    { name: "Панель", path: "/dashboard" },
-    { name: "Карта", path: "/map" },
-    { name: "О Проекте", path: "/about" },
-    { name: "Почему Это Важно", path: "/why" },
+    { name: "Home", path: "/" },
+    { name: "Dashboard", path: "/dashboard" },
+    { name: "About", path: "/about" },
+    { name: "Why It Matters", path: "/why" },
   ];
 
   return (
@@ -18,7 +17,7 @@ const Navbar = () => {
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 text-primary font-bold text-lg hover:text-secondary transition-colors">
           <Satellite className="w-6 h-6" />
-          <span>Погодный Парад</span>
+          <span>MeteoStat</span>
         </Link>
         
         <div className="flex items-center gap-1">
