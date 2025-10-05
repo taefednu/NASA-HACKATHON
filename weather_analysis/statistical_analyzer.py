@@ -1297,7 +1297,14 @@ class StatisticalAnalyzer:
     @staticmethod
     def _day_to_date_string(day_of_year: int) -> str:
         """
-        Конвертировать день года в строку с датой (пример для 2024)
+        Конвертировать день года в строку с датой (используем невисокосный год для консистентности)
         """
-        date = datetime(2024, 1, 1) + pd.Timedelta(days=day_of_year - 1)
-        return date.strftime('%B %d')
+        # Используем невисокосный год (2023) для правильного отображения дат
+        # Это важно, т.к. день года зависит от високосности года
+        date = datetime(2023, 1, 1) + pd.Timedelta(days=day_of_year - 1)
+        # Используем %-d для вывода дня без ведущего нуля (Linux/Mac) или %#d (Windows)
+        # Универсальный способ - использовать %d и убрать ведущий ноль
+        formatted = date.strftime('%B %d')
+        # Убираем ведущий ноль из дня
+        month, day = formatted.rsplit(' ', 1)
+        return f"{month} {int(day)}"

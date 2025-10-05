@@ -20,13 +20,13 @@ def date_to_day_of_year(date_str: str) -> int:
     return date.timetuple().tm_yday
 
 
-def day_of_year_to_date(day: int, year: int = 2024) -> str:
+def day_of_year_to_date(day: int, year: int = 2023) -> str:
     """
     Конвертировать день года в дату
     
     Args:
         day: День года (1-365)
-        year: Год (по умолчанию 2024)
+        year: Год (по умолчанию 2023 - невисокосный для консистентности)
         
     Returns:
         Дата в формате 'YYYY-MM-DD'
