@@ -8,14 +8,14 @@ class WeatherConfig:
     
     # === ТЕМПЕРАТУРНЫЕ ПОРОГИ (°C) ===
     TEMPERATURE_THRESHOLDS = {
-        'very_cold': -10,      # Очень холодно
-        'cold': 0,             # Холодно
-        'cool': 10,            # Прохладно
-        'comfortable': (15, 25),  # Комфортно
-        'warm': 27,            # Тепло
-        'hot': 32,             # Жарко
-        'very_hot': 38,        # Очень жарко
-        'extreme_heat': 43     # Экстремальная жара (опасно)
+        'very_cold': {'absolute_min': -10, 'absolute_max': 0},      # Очень холодно
+        'cold': {'absolute_min': 0, 'absolute_max': 10},            # Холодно
+        'cool': {'absolute_min': 10, 'absolute_max': 15},           # Прохладно
+        'comfortable': {'min': 15, 'max': 25},                      # Комфортно
+        'warm': {'absolute_min': 25, 'absolute_max': 32},           # Тепло
+        'hot': {'absolute_min': 32, 'absolute_max': 38},            # Жарко
+        'very_hot': {'absolute_min': 38, 'absolute_max': 43},       # Очень жарко
+        'extreme_heat': {'absolute_min': 43}                        # Экстремальная жара (опасно)
     }
     
     # === ОСАДКИ (mm/день) ===
@@ -24,19 +24,17 @@ class WeatherConfig:
         'light_rain': 2.5,     # Легкий дождь
         'moderate_rain': 10,   # Умеренный дождь
         'heavy_rain': 50,      # Сильный дождь
-        'very_heavy_rain': 100 # Очень сильный дождь
+        'very_heavy_rain': 100, # Очень сильный дождь
+        'very_wet': 100,       # Очень влажно (то же что very_heavy_rain)
+        'very_dry': 0.1        # Очень сухо (менее 0.1мм)
     }
     
     # === ВЕТЕР (m/s) ===
     WIND_THRESHOLDS = {
         'calm': 1,             # Штиль/слабый
-        'light_breeze': 3,     # Легкий бриз
-        'moderate_breeze': 6,  # Умеренный бриз
-        'fresh_breeze': 10,    # Свежий бриз (ощутимый)
-        'strong_breeze': 15,   # Сильный бриз (может гнуть деревья)
-        'gale': 20,            # Шторм (опасность)
-        'storm': 25,           # Сильный шторм
-        'hurricane': 33        # Ураган (очень опасно)
+        'moderate_wind': 6,    # Умеренный ветер
+        'strong_wind': 15,     # Сильный ветер
+        'very_windy': 20       # Очень ветрено
     }
     
     # === ВЛАЖНОСТЬ (%) ===
@@ -89,6 +87,29 @@ class WeatherConfig:
         'moderate': 10,      # Умеренная
         'good': 20,          # Хорошая
         'excellent': 50      # Отличная
+    }
+    
+    # === ТОЧКА РОСЫ (°C) - Риск конденсации и уровень дискомфорта ===
+    DEW_POINT_THRESHOLDS = {
+        'very_dry': 0,              # < 0°C - очень сухо (зима)
+        'dry': 10,                  # 0-10°C - сухо, комфортно
+        'comfortable': 15,          # 10-15°C - приятно
+        'humid': 18,                # 15-18°C - влажновато
+        'muggy': 21,                # 18-21°C - душно
+        'oppressive': 24,           # 21-24°C - тяжело дышать
+        'extremely_oppressive': 27  # > 24°C - крайне душно
+    }
+    
+    # === НАПРАВЛЕНИЕ ВЕТРА (градусы) ===
+    WIND_DIRECTION_CATEGORIES = {
+        'north': (337.5, 22.5),       # Север (N) 0° - холодный воздух
+        'northeast': (22.5, 67.5),    # Северо-восток (NE) 45°
+        'east': (67.5, 112.5),        # Восток (E) 90°
+        'southeast': (112.5, 157.5),  # Юго-восток (SE) 135°
+        'south': (157.5, 202.5),      # Юг (S) 180° - теплый воздух
+        'southwest': (202.5, 247.5),  # Юго-запад (SW) 225° - часто дождь
+        'west': (247.5, 292.5),       # Запад (W) 270°
+        'northwest': (292.5, 337.5)   # Северо-запад (NW) 315°
     }
     
     # === ОЩУЩАЕМАЯ ТЕМПЕРАТУРА (°C) ===
@@ -153,12 +174,19 @@ class WeatherConfig:
         'none': 0, 'very_low': 300, 'low': 1000, 'moderate': 1500, 'high': 2500, 'very_high': 3500, 'extreme': 5000
     }
     
-    # === ИНДЕКС КОМФОРТА (Heat Index) ===
-    COMFORT_INDEX_THRESHOLDS = {
-        'comfortable': 26,
-        'uncomfortable': 32,
-        'very_uncomfortable': 39,
-        'dangerous': 54
+    # === ИНДЕКС КОМФОРТА (Heat Index) - для _analyze_comfort ===
+    COMFORT_INDEX = {
+        'very_uncomfortable': {
+            'heat_index_min': 39  # Heat index > 39 = очень некомфортно
+        },
+        'uncomfortable_hot': {
+            'temp_min': 28,       # Температура > 28°C
+            'humidity_min': 70    # Влажность > 70%
+        },
+        'comfortable': {
+            'temp_range': (18, 26),  # Комфортная температура 18-26°C
+            'humidity_max': 70       # Влажность <= 70%
+        }
     }
 
     # === ПАРАМЕТРЫ ДАННЫХ NASA ===
@@ -291,8 +319,8 @@ class WeatherConfig:
         # Формула Wind Chill Index (US National Weather Service) - для °C и км/ч
         wind_speed_kmh = wind_speed_ms * 3.6
         
-        wci_c = 13.12 + 0.6215 * temperature_c - 11.37 * (wind_speed_kmh**0.16) + 
-                0.3965 * temperature_c * (wind_speed_kmh**0.16)
+        wci_c = (13.12 + 0.6215 * temperature_c - 11.37 * (wind_speed_kmh**0.16) + 
+                 0.3965 * temperature_c * (wind_speed_kmh**0.16))
         
         return wci_c
     

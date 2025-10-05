@@ -134,7 +134,22 @@ class TestUtilsImport:
     def test_can_import_multi_source_service(self):
         """Можно импортировать multi_source_service"""
         from weather_analysis.multi_source_service import MultiSourceDataService
-        service = MultiSourceDataService()
+        from weather_analysis.data_service import WeatherDataService
+        from weather_analysis.data_adapters import OpenMeteoEnhancedAdapter, GESDISCAdapter, CPTECAdapter
+        
+        # Создаем зависимости
+        nasa_power = WeatherDataService(preferred_source='nasa')
+        open_meteo = OpenMeteoEnhancedAdapter()
+        ges_disc = GESDISCAdapter()
+        cptec = CPTECAdapter()
+        
+        # Тестируем инициализацию
+        service = MultiSourceDataService(
+            nasa_power_service=nasa_power,
+            open_meteo_enhanced_adapter=open_meteo,
+            ges_disc_adapter=ges_disc,
+            cptec_adapter=cptec
+        )
         assert service is not None
 
 

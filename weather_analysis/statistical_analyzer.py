@@ -68,20 +68,45 @@ class StatisticalAnalyzer:
             wind_probs = self._analyze_wind(day_data)
             probabilities.update(wind_probs)
         
+        # === НАПРАВЛЕНИЕ ВЕТРА ===
+        wind_dir_probs = self._analyze_wind_direction(day_data)
+        if wind_dir_probs:
+            probabilities.update(wind_dir_probs)
+        
         # === ИНДЕКС КОМФОРТА ===
         if 'T2M' in day_data.columns and 'RH2M' in day_data.columns:
             comfort_probs = self._analyze_comfort(day_data)
             probabilities.update(comfort_probs)
+        
+        # === ВЛАЖНОСТЬ ===
+        if 'RH2M' in day_data.columns:
+            humidity_probs = self._analyze_humidity(day_data)
+            probabilities.update(humidity_probs)
+        
+        # === ТОЧКА РОСЫ ===
+        dew_point_probs = self._analyze_dew_point(day_data)
+        if dew_point_probs:
+            probabilities.update(dew_point_probs)
         
         # === ОБЛАЧНОСТЬ ===
         if 'CLOUD_AMT' in day_data.columns:
             cloud_probs = self._analyze_cloudiness(day_data)
             probabilities.update(cloud_probs)
         
+        # === ВИДИМОСТЬ ===
+        visibility_probs = self._analyze_visibility(day_data)
+        if visibility_probs:
+            probabilities.update(visibility_probs)
+        
         # === UV ИНДЕКС ===
         if 'ALLSKY_SFC_UV_INDEX' in day_data.columns:
             uv_probs = self._analyze_uv_index(day_data)
             probabilities.update(uv_probs)
+        
+        # === СОЛНЕЧНАЯ РАДИАЦИЯ ===
+        if 'ALLSKY_SFC_SW_DWN' in day_data.columns:
+            solar_probs = self._analyze_solar_radiation(day_data)
+            probabilities.update(solar_probs)
         
         # === АТМОСФЕРНОЕ ДАВЛЕНИЕ ===
         if 'PS' in day_data.columns:
@@ -226,6 +251,60 @@ class StatisticalAnalyzer:
         
         return probabilities
     
+    def _analyze_wind_direction(self, day_data: pd.DataFrame) -> Dict:
+        """
+        Анализ направления ветра (8 категорий)
+        Использует WD2M или WD10M (градусы: 0° = Север, 90° = Восток, 180° = Юг, 270° = Запад)
+        """
+        probabilities = {}
+        
+        # Выбираем доступный параметр направления ветра
+        wind_dir_col = None
+        if 'WD10M' in day_data.columns:
+            wind_dir_col = 'WD10M'
+        elif 'WD2M' in day_data.columns:
+            wind_dir_col = 'WD2M'
+        
+        if wind_dir_col is None:
+            return probabilities
+            
+        wind_dir = day_data[wind_dir_col]
+        
+        # Север (337.5° - 22.5°)
+        # Специальная обработка для диапазона через 0°
+        wind_north = ((wind_dir >= 337.5) | (wind_dir < 22.5))
+        probabilities['wind_from_north'] = wind_north.mean()
+        
+        # Северо-восток (22.5° - 67.5°)
+        wind_ne = (wind_dir >= 22.5) & (wind_dir < 67.5)
+        probabilities['wind_from_northeast'] = wind_ne.mean()
+        
+        # Восток (67.5° - 112.5°)
+        wind_east = (wind_dir >= 67.5) & (wind_dir < 112.5)
+        probabilities['wind_from_east'] = wind_east.mean()
+        
+        # Юго-восток (112.5° - 157.5°)
+        wind_se = (wind_dir >= 112.5) & (wind_dir < 157.5)
+        probabilities['wind_from_southeast'] = wind_se.mean()
+        
+        # Юг (157.5° - 202.5°)
+        wind_south = (wind_dir >= 157.5) & (wind_dir < 202.5)
+        probabilities['wind_from_south'] = wind_south.mean()
+        
+        # Юго-запад (202.5° - 247.5°)
+        wind_sw = (wind_dir >= 202.5) & (wind_dir < 247.5)
+        probabilities['wind_from_southwest'] = wind_sw.mean()
+        
+        # Запад (247.5° - 292.5°)
+        wind_west = (wind_dir >= 247.5) & (wind_dir < 292.5)
+        probabilities['wind_from_west'] = wind_west.mean()
+        
+        # Северо-запад (292.5° - 337.5°)
+        wind_nw = (wind_dir >= 292.5) & (wind_dir < 337.5)
+        probabilities['wind_from_northwest'] = wind_nw.mean()
+        
+        return probabilities
+    
     def _analyze_comfort(self, day_data: pd.DataFrame) -> Dict:
         """
         Анализ индекса комфорта (учитывает температуру + влажность)
@@ -269,6 +348,78 @@ class StatisticalAnalyzer:
         
         return probabilities
     
+    def _analyze_humidity(self, day_data: pd.DataFrame) -> Dict:
+        """
+        Анализ влажности воздуха (5 категорий)
+        """
+        probabilities = {}
+        
+        humidity = day_data['RH2M']
+        
+        # Очень сухо (< 30%)
+        very_dry_humid = humidity < 30
+        probabilities['very_dry_humidity'] = very_dry_humid.mean()
+        
+        # Сухо (30-40%)
+        dry_humid = (humidity >= 30) & (humidity < 40)
+        probabilities['dry_humidity'] = dry_humid.mean()
+        
+        # Комфортная влажность (40-60%)
+        comfortable_humid = (humidity >= 40) & (humidity <= 60)
+        probabilities['comfortable_humidity'] = comfortable_humid.mean()
+        
+        # Влажно (60-80%)
+        humid = (humidity > 60) & (humidity <= 80)
+        probabilities['humid'] = humid.mean()
+        
+        # Очень влажно (> 80%)
+        very_humid = humidity > 80
+        probabilities['very_humid'] = very_humid.mean()
+        
+        return probabilities
+    
+    def _analyze_dew_point(self, day_data: pd.DataFrame) -> Dict:
+        """
+        Анализ точки росы (7 категорий)
+        Точка росы показывает риск конденсации и уровень дискомфорта от влажности
+        """
+        probabilities = {}
+        
+        if 'T2MDEW' not in day_data.columns:
+            return probabilities
+            
+        dew_point = day_data['T2MDEW']
+        
+        # Очень сухо (< 0°C) - зима, комфортно
+        dew_very_dry = dew_point < 0
+        probabilities['dew_point_very_dry'] = dew_very_dry.mean()
+        
+        # Сухо (0-10°C) - сухо, комфортно
+        dew_dry = (dew_point >= 0) & (dew_point < 10)
+        probabilities['dew_point_dry'] = dew_dry.mean()
+        
+        # Комфортно (10-15°C) - приятно
+        dew_comfortable = (dew_point >= 10) & (dew_point <= 15)
+        probabilities['dew_point_comfortable'] = dew_comfortable.mean()
+        
+        # Влажновато (15-18°C)
+        dew_humid = (dew_point > 15) & (dew_point <= 18)
+        probabilities['dew_point_humid'] = dew_humid.mean()
+        
+        # Душно (18-21°C)
+        dew_muggy = (dew_point > 18) & (dew_point <= 21)
+        probabilities['dew_point_muggy'] = dew_muggy.mean()
+        
+        # Тяжело дышать (21-24°C)
+        dew_oppressive = (dew_point > 21) & (dew_point <= 24)
+        probabilities['dew_point_oppressive'] = dew_oppressive.mean()
+        
+        # Крайне душно (> 24°C)
+        dew_extreme = dew_point > 24
+        probabilities['dew_point_extreme'] = dew_extreme.mean()
+        
+        return probabilities
+    
     def _analyze_cloudiness(self, day_data: pd.DataFrame) -> Dict:
         """
         Анализ облачности"""
@@ -293,6 +444,47 @@ class StatisticalAnalyzer:
         # Пасмурно
         overcast = cloud >= self.config.CLOUD_THRESHOLDS['overcast']
         probabilities['overcast'] = overcast.mean()
+        
+        return probabilities
+    
+    def _analyze_visibility(self, day_data: pd.DataFrame) -> Dict:
+        """
+        Анализ видимости (5 категорий)
+        Расчетная модель на основе влажности и облачности
+        Высокая влажность + облачность = низкая видимость (туман)
+        """
+        probabilities = {}
+        
+        # Проверяем наличие нужных колонок
+        if 'RH2M' not in day_data.columns or 'CLOUD_AMT' not in day_data.columns:
+            return probabilities
+        
+        humidity = day_data['RH2M']
+        cloudiness = day_data['CLOUD_AMT']
+        
+        # Простая модель: видимость ухудшается при высокой влажности и облачности
+        # Вычисляем "индекс плохой видимости" (0-100)
+        visibility_index = (humidity * 0.6 + cloudiness * 0.4)
+        
+        # Очень плохая видимость (туман) - индекс > 85
+        vis_very_poor = visibility_index > 85
+        probabilities['visibility_very_poor'] = vis_very_poor.mean()
+        
+        # Плохая видимость - индекс 70-85
+        vis_poor = (visibility_index > 70) & (visibility_index <= 85)
+        probabilities['visibility_poor'] = vis_poor.mean()
+        
+        # Умеренная видимость - индекс 50-70
+        vis_moderate = (visibility_index > 50) & (visibility_index <= 70)
+        probabilities['visibility_moderate'] = vis_moderate.mean()
+        
+        # Хорошая видимость - индекс 30-50
+        vis_good = (visibility_index > 30) & (visibility_index <= 50)
+        probabilities['visibility_good'] = vis_good.mean()
+        
+        # Отличная видимость - индекс < 30
+        vis_excellent = visibility_index <= 30
+        probabilities['visibility_excellent'] = vis_excellent.mean()
         
         return probabilities
     
@@ -325,6 +517,35 @@ class StatisticalAnalyzer:
         # Экстремальный UV
         extreme_uv = uv >= self.config.UV_THRESHOLDS['extreme']
         probabilities['extreme_uv'] = extreme_uv.mean()
+        
+        return probabilities
+    
+    def _analyze_solar_radiation(self, day_data: pd.DataFrame) -> Dict:
+        """
+        Анализ солнечной радиации (4 категории)
+        """
+        probabilities = {}
+        
+        if 'ALLSKY_SFC_SW_DWN' not in day_data.columns:
+            return probabilities
+            
+        solar = day_data['ALLSKY_SFC_SW_DWN']
+        
+        # Очень низкая (< 2 кВт-ч/м²/день) - пасмурно
+        very_low_solar = solar < 2.0
+        probabilities['very_low_solar'] = very_low_solar.mean()
+        
+        # Низкая (2-4 кВт-ч/м²/день)
+        low_solar = (solar >= 2.0) & (solar < 4.0)
+        probabilities['low_solar'] = low_solar.mean()
+        
+        # Умеренная (4-6 кВт-ч/м²/день)
+        moderate_solar = (solar >= 4.0) & (solar < 6.0)
+        probabilities['moderate_solar'] = moderate_solar.mean()
+        
+        # Высокая (> 6 кВт-ч/м²/день) - ясно
+        high_solar = solar >= 6.0
+        probabilities['high_solar'] = high_solar.mean()
         
         return probabilities
     
@@ -578,7 +799,12 @@ class StatisticalAnalyzer:
                                   latitude: float = None) -> Dict:
         """
         Получить упрощенные вероятности (только главные категории)
-        для удобного отображения пользователю
+        для удобного отображения пользователю.
+        
+        Возвращает структуру для отображения на сайте:
+        - main_features: 8 основных блоков со ВСЕМИ категориями и вероятностями
+        - additional_features: 12 дополнительных признаков с ОДНОЙ самой вероятной категорией
+        - probabilities: старая структура для обратной совместимости (8 ключевых категорий)
         """
         full_analysis = self.analyze_day(data, day_of_year, latitude)
         
@@ -587,8 +813,8 @@ class StatisticalAnalyzer:
         
         probs = full_analysis['probabilities']
         
-        # Возвращаем только ключевые категории
-        summary = {
+        # ===== СТАРАЯ СТРУКТУРА (для обратной совместимости) =====
+        old_summary = {
             'very_cold': probs.get('very_cold', 0.0),
             'cold': probs.get('cold', 0.0),
             'comfortable': probs.get('comfortable', 0.0),
@@ -599,12 +825,309 @@ class StatisticalAnalyzer:
             'very_uncomfortable': probs.get('very_uncomfortable', 0.0)
         }
         
+        # ===== НОВАЯ СТРУКТУРА ДЛЯ САЙТА =====
+        
+        # 8 ОСНОВНЫХ БЛОКОВ - показываем ВСЕ категории с вероятностями
+        main_features = {
+            'temperature': {
+                'very_cold': probs.get('very_cold', 0.0),
+                'cold': probs.get('cold', 0.0),
+                'cool': probs.get('cool', 0.0),
+                'comfortable': probs.get('comfortable', 0.0),
+                'warm': probs.get('warm', 0.0),
+                'hot': probs.get('hot', 0.0),
+                'very_hot': probs.get('very_hot', 0.0)
+            },
+            'precipitation': {
+                'dry': probs.get('dry', 0.0),
+                'light_rain': probs.get('light_rain', 0.0),
+                'moderate_rain': probs.get('moderate_rain', 0.0),
+                'heavy_rain': probs.get('heavy_rain', 0.0),
+                'very_wet': probs.get('very_wet', 0.0)
+            },
+            'wind': {
+                'calm': probs.get('calm', 0.0),
+                'light_breeze': probs.get('light_breeze', 0.0),
+                'moderate_wind': probs.get('moderate_wind', 0.0),
+                'strong_wind': probs.get('strong_wind', 0.0),
+                'very_windy': probs.get('very_windy', 0.0)
+            },
+            'cloudiness': {
+                'clear': probs.get('clear', 0.0),
+                'partly_cloudy': probs.get('partly_cloudy', 0.0),
+                'mostly_cloudy': probs.get('mostly_cloudy', 0.0),
+                'overcast': probs.get('overcast', 0.0)
+            },
+            'uv_index': {
+                'low_uv': probs.get('low_uv', 0.0),
+                'moderate_uv': probs.get('moderate_uv', 0.0),
+                'high_uv': probs.get('high_uv', 0.0),
+                'very_high_uv': probs.get('very_high_uv', 0.0),
+                'extreme_uv': probs.get('extreme_uv', 0.0)
+            },
+            'pressure': {
+                'low_pressure': probs.get('low_pressure', 0.0),
+                'normal_pressure': probs.get('normal_pressure', 0.0),
+                'high_pressure': probs.get('high_pressure', 0.0)
+            },
+            'comfort': {
+                'comfortable_comfort': probs.get('comfortable_comfort', 0.0),
+                'slightly_uncomfortable': probs.get('slightly_uncomfortable', 0.0),
+                'uncomfortable': probs.get('uncomfortable', 0.0),
+                'very_uncomfortable': probs.get('very_uncomfortable', 0.0)
+            },
+            'snow': {
+                'no_snow': probs.get('no_snow', 0.0),
+                'light_snow': probs.get('light_snow', 0.0),
+                'moderate_snow': probs.get('moderate_snow', 0.0),
+                'heavy_snow': probs.get('heavy_snow', 0.0)
+            }
+        }
+        
+        # 12 ДОПОЛНИТЕЛЬНЫХ ПРИЗНАКОВ - показываем ТОЛЬКО самую вероятную категорию
+        additional_features = {}
+        
+        # Вспомогательная функция для нахождения максимальной категории
+        def find_best_category(category_names):
+            best_cat = None
+            best_prob = -1.0
+            for cat_name in category_names:
+                prob = probs.get(cat_name, 0.0)
+                if prob > best_prob:
+                    best_prob = prob
+                    best_cat = cat_name
+            return best_cat, best_prob
+        
+        # 1. Apparent Temperature (Ощущаемая температура)
+        apparent_cats = ['feels_very_cold', 'feels_cold', 'feels_cool', 'feels_comfortable', 
+                         'feels_warm', 'feels_hot', 'feels_very_hot']
+        cat, prob = find_best_category(apparent_cats)
+        if cat:
+            additional_features['apparent_temperature'] = {
+                'category': cat,
+                'probability': prob,
+                'description': self._get_category_description('apparent_temperature', cat)
+            }
+        
+        # 2. Dew Point (Точка росы)
+        dew_cats = ['dew_very_dry', 'dew_dry', 'dew_comfortable', 'dew_humid', 
+                    'dew_muggy', 'dew_oppressive', 'dew_extreme']
+        cat, prob = find_best_category(dew_cats)
+        if cat:
+            additional_features['dew_point'] = {
+                'category': cat,
+                'probability': prob,
+                'description': self._get_category_description('dew_point', cat)
+            }
+        
+        # 3. Humidity (Влажность)
+        humidity_cats = ['very_dry_air', 'dry_air', 'normal_humidity', 'humid', 'very_humid']
+        cat, prob = find_best_category(humidity_cats)
+        if cat:
+            additional_features['humidity'] = {
+                'category': cat,
+                'probability': prob,
+                'description': self._get_category_description('humidity', cat)
+            }
+        
+        # 4. Wind Direction (Направление ветра)
+        wind_dir_cats = ['wind_north', 'wind_northeast', 'wind_east', 'wind_southeast',
+                        'wind_south', 'wind_southwest', 'wind_west', 'wind_northwest']
+        cat, prob = find_best_category(wind_dir_cats)
+        if cat:
+            additional_features['wind_direction'] = {
+                'category': cat,
+                'probability': prob,
+                'description': self._get_category_description('wind_direction', cat)
+            }
+        
+        # 5. Wind Gusts (Порывы ветра)
+        gust_cats = ['no_gusts', 'light_gusts', 'moderate_gusts', 'strong_gusts', 'severe_gusts']
+        cat, prob = find_best_category(gust_cats)
+        if cat:
+            additional_features['wind_gusts'] = {
+                'category': cat,
+                'probability': prob,
+                'description': self._get_category_description('wind_gusts', cat)
+            }
+        
+        # 6. Solar Radiation (Солнечная радиация)
+        solar_cats = ['no_solar', 'low_solar', 'moderate_solar', 'high_solar', 'very_high_solar']
+        cat, prob = find_best_category(solar_cats)
+        if cat:
+            additional_features['solar_radiation'] = {
+                'category': cat,
+                'probability': prob,
+                'description': self._get_category_description('solar_radiation', cat)
+            }
+        
+        # 7. Visibility (Видимость)
+        visibility_cats = ['very_poor_visibility', 'poor_visibility', 'moderate_visibility',
+                          'good_visibility', 'excellent_visibility']
+        cat, prob = find_best_category(visibility_cats)
+        if cat:
+            additional_features['visibility'] = {
+                'category': cat,
+                'probability': prob,
+                'description': self._get_category_description('visibility', cat)
+            }
+        
+        # 8. Weather Codes (Коды погоды)
+        weather_cats = ['clear_weather', 'partly_cloudy_weather', 'cloudy_weather', 
+                       'rain_weather', 'snow_weather', 'thunderstorm_weather', 'fog_weather']
+        cat, prob = find_best_category(weather_cats)
+        if cat:
+            additional_features['weather_codes'] = {
+                'category': cat,
+                'probability': prob,
+                'description': self._get_category_description('weather_codes', cat)
+            }
+        
+        # 9. Air Quality Index (Качество воздуха)
+        aqi_cats = ['good_air', 'moderate_air', 'unhealthy_sensitive', 'unhealthy_air', 
+                   'very_unhealthy_air', 'hazardous_air']
+        cat, prob = find_best_category(aqi_cats)
+        if cat:
+            additional_features['air_quality'] = {
+                'category': cat,
+                'probability': prob,
+                'description': self._get_category_description('air_quality', cat)
+            }
+        
+        # 10. Black Carbon (Черный углерод)
+        bc_cats = ['low_bc', 'moderate_bc', 'high_bc', 'very_high_bc']
+        cat, prob = find_best_category(bc_cats)
+        if cat:
+            additional_features['black_carbon'] = {
+                'category': cat,
+                'probability': prob,
+                'description': self._get_category_description('black_carbon', cat)
+            }
+        
+        # 11. Dust (Пыль)
+        dust_cats = ['low_dust', 'moderate_dust', 'high_dust', 'very_high_dust']
+        cat, prob = find_best_category(dust_cats)
+        if cat:
+            additional_features['dust'] = {
+                'category': cat,
+                'probability': prob,
+                'description': self._get_category_description('dust', cat)
+            }
+        
+        # 12. Thunderstorm Risk (Риск грозы)
+        thunder_cats = ['no_storm_risk', 'low_storm_risk', 'moderate_storm_risk', 
+                       'high_storm_risk', 'extreme_storm_risk']
+        cat, prob = find_best_category(thunder_cats)
+        if cat:
+            additional_features['thunderstorm_risk'] = {
+                'category': cat,
+                'probability': prob,
+                'description': self._get_category_description('thunderstorm_risk', cat)
+            }
+        
+        # ===== ВОЗВРАТ С ОБРАТНОЙ СОВМЕСТИМОСТЬЮ =====
         return {
             'day_of_year': day_of_year,
             'date_example': full_analysis['date_example'],
-            'probabilities': summary,
+            'probabilities': old_summary,  # Старая структура - 8 ключевых категорий
+            'main_features': main_features,  # Новая структура - 8 блоков со всеми категориями
+            'additional_features': additional_features,  # Новая структура - 12 признаков с лучшей категорией
             'statistics': full_analysis['statistics']
         }
+    
+    def _get_category_description(self, feature: str, category: str) -> str:
+        """Получить человекочитаемое описание категории для фронтенда"""
+        descriptions = {
+            # Ощущаемая температура
+            'extreme_cold_feels': 'Ощущается экстремально холодно',
+            'very_cold_feels': 'Ощущается очень холодно',
+            'cold_feels': 'Ощущается холодно',
+            'cool_feels': 'Ощущается прохладно',
+            'comfortable_feels': 'Ощущается комфортно',
+            'warm_feels': 'Ощущается тепло',
+            'hot_feels': 'Ощущается жарко',
+            'very_hot_feels': 'Ощущается очень жарко',
+            'extreme_heat_feels': 'Ощущается невыносимо жарко',
+            # Точка росы
+            'dew_point_very_dry': 'Очень сухой воздух',
+            'dew_point_dry': 'Сухой воздух',
+            'dew_point_comfortable': 'Комфортная влажность',
+            'dew_point_humid': 'Влажный воздух',
+            'dew_point_muggy': 'Душный воздух',
+            'dew_point_oppressive': 'Очень душно',
+            'dew_point_extreme': 'Крайне душно',
+            # Влажность
+            'very_dry_humidity': 'Очень низкая влажность',
+            'dry_humidity': 'Низкая влажность',
+            'comfortable_humidity': 'Комфортная влажность',
+            'humid': 'Повышенная влажность',
+            'very_humid': 'Очень высокая влажность',
+            # Направление ветра
+            'wind_from_north': 'Северный ветер',
+            'wind_from_northeast': 'Северо-восточный ветер',
+            'wind_from_east': 'Восточный ветер',
+            'wind_from_southeast': 'Юго-восточный ветер',
+            'wind_from_south': 'Южный ветер',
+            'wind_from_southwest': 'Юго-западный ветер',
+            'wind_from_west': 'Западный ветер',
+            'wind_from_northwest': 'Северо-западный ветер',
+            # Порывы ветра
+            'calm_gusts': 'Слабые порывы',
+            'moderate_gusts': 'Умеренные порывы',
+            'strong_gusts': 'Сильные порывы',
+            'very_strong_gusts': 'Очень сильные порывы',
+            'storm_gusts': 'Штормовые порывы',
+            'hurricane_gusts': 'Ураганные порывы',
+            # Солнечная радиация
+            'very_low_solar': 'Очень низкая радиация',
+            'low_solar': 'Низкая радиация',
+            'moderate_solar': 'Умеренная радиация',
+            'high_solar': 'Высокая радиация',
+            # Видимость
+            'visibility_very_poor': 'Очень плохая видимость (туман)',
+            'visibility_poor': 'Плохая видимость',
+            'visibility_moderate': 'Умеренная видимость',
+            'visibility_good': 'Хорошая видимость',
+            'visibility_excellent': 'Отличная видимость',
+            # Коды погоды
+            'weather_clear': 'Ясно',
+            'weather_cloudy': 'Облачно',
+            'weather_fog': 'Туман',
+            'weather_drizzle': 'Морось',
+            'weather_rain': 'Дождь',
+            'weather_snow': 'Снег',
+            'weather_thunderstorm': 'Гроза',
+            # Качество воздуха
+            'air_quality_excellent': 'Отличное качество',
+            'air_quality_good': 'Хорошее качество',
+            'air_quality_moderate': 'Умеренное качество',
+            'air_quality_poor': 'Плохое качество',
+            'air_quality_very_poor': 'Очень плохое качество',
+            'air_quality_hazardous': 'Опасное качество',
+            # Черный углерод
+            'black_carbon_clean': 'Чистый воздух',
+            'black_carbon_low': 'Низкий уровень',
+            'black_carbon_moderate': 'Умеренный уровень',
+            'black_carbon_high': 'Высокий уровень',
+            'black_carbon_very_high': 'Очень высокий уровень',
+            'black_carbon_extreme': 'Экстремальный уровень',
+            # Пыль
+            'dust_minimal': 'Минимальное количество',
+            'dust_low': 'Низкое количество',
+            'dust_moderate': 'Умеренное количество',
+            'dust_high': 'Высокое количество',
+            'dust_very_high': 'Очень высокое количество',
+            'dust_storm': 'Пыльная буря',
+            # Риск грозы
+            'thunderstorm_none': 'Грозы нет',
+            'thunderstorm_very_low': 'Очень низкий риск',
+            'thunderstorm_low': 'Низкий риск',
+            'thunderstorm_moderate': 'Умеренный риск',
+            'thunderstorm_high': 'Высокий риск',
+            'thunderstorm_very_high': 'Очень высокий риск',
+            'thunderstorm_extreme': 'Экстремальный риск'
+        }
+        return descriptions.get(category, category.replace('_', ' ').title())
     
     def _analyze_apparent_temperature(self, day_data: pd.DataFrame) -> Dict:
         """

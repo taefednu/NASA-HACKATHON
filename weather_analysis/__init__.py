@@ -38,6 +38,7 @@ from .data_service import WeatherDataService
 from .statistical_analyzer import StatisticalAnalyzer
 from .config import WeatherConfig
 from .multi_source_service import MultiSourceDataService
+from .data_adapters import OpenMeteoEnhancedAdapter, GESDISCAdapter, CPTECAdapter
 from .utils import (date_to_day_of_year, format_probability, get_probability_description,
                     convert_result_units)
 
@@ -113,63 +114,58 @@ def analyze_weather(latitude: float,
     
     # Получаем данные
     if use_multi_source:
-        # Используем мультисорсный подход
-        multi_service = MultiSourceDataService()
+        # Используем мультисорсный подход для исторических данных
+        print("🔬 МУЛЬТИСОРСНЫЙ РЕЖИМ: получение данных из нескольких источников...")
         
+        # Получаем данные из основного источника (NASA POWER) для исторического анализа
+        data_service = WeatherDataService(preferred_source=data_source)
+        historical_data, source = data_service.get_data(
+            latitude=latitude,
+            longitude=longitude,
+            start_year=years_range[0],
+            end_year=years_range[1]
+        )
+        
+        print(f"✓ Основной источник (исторические данные): {source}")
+        print(f"✓ Получено записей: {len(historical_data)}")
+
+        # Дополнительно: получаем данные от других источников для ТЕКУЩЕЙ даты (консенсус)
+        # Это улучшает точность прогноза, добавляя расширенные параметры
         try:
-            # Формируем даты для запроса
-            import datetime
-            date_obj = datetime.datetime.strptime(date, '%Y-%m-%d')
-            start_date = f"{years_range[0]}-{date_obj.month:02d}-{date_obj.day:02d}"
-            end_date = f"{years_range[1]}-{date_obj.month:02d}-{date_obj.day:02d}"
+            nasa_power = WeatherDataService(preferred_source='nasa')
+            open_meteo = OpenMeteoEnhancedAdapter()
+            ges_disc = GESDISCAdapter()
+            cptec = CPTECAdapter()
             
-            # Запрашиваем данные из всех источников
-            multi_data = multi_service.fetch_multi_source_data(
-                latitude, longitude,
-                start_date, end_date,
-                parameters=['temperature', 'precipitation', 'wind_speed', 'humidity',
-                           'apparent_temperature', 'weathercode', 'windgusts',
-                           'air_quality', 'black_carbon', 'dust', 'thunderstorm_risk']
+            multi_service = MultiSourceDataService(
+                nasa_power_service=nasa_power,
+                open_meteo_enhanced_adapter=open_meteo,
+                ges_disc_adapter=ges_disc,
+                cptec_adapter=cptec
             )
             
-            print(f"✓ Источники данных: {list(multi_data.keys())}")
+            # Получаем данные на целевую дату для консенсус-анализа
+            import datetime
+            target_date = datetime.datetime.strptime(date, '%Y-%m-%d').date()
             
-            # Объединяем данные из всех источников
-            # Приоритет: NASA POWER (базовые параметры) → затем дополнения из других источников
-            if multi_data:
-                # Ищем NASA POWER как основной источник (содержит все базовые параметры)
-                if 'nasa_power' in multi_data:
-                    historical_data = multi_data['nasa_power'].copy()
-                    print(f"✓ Основной источник: NASA POWER ({len(historical_data)} записей)")
-                elif 'openmeteo' in multi_data:
-                    historical_data = multi_data['openmeteo'].copy()
-                    print(f"✓ Основной источник: Open-Meteo ({len(historical_data)} записей)")
-                else:
-                    # Fallback - берем первый доступный с базовыми данными
-                    historical_data = list(multi_data.values())[0].copy()
-                    print(f"⚠ Основной источник: {list(multi_data.keys())[0]} (fallback)")
-                
-                # TODO: Мержим дополнительные параметры из других источников (GES DISC, CPTEC)
-                # if 'ges_disc' in multi_data:
-                #     # Добавляем air_quality, black_carbon, dust
-                #     pass
-                
-                source = f"Multi-source: {', '.join(multi_data.keys())}"
-                
-                # Добавляем day_of_year если его нет
-                if 'day_of_year' not in historical_data.columns and 'date' in historical_data.columns:
-                    historical_data['day_of_year'] = pd.to_datetime(historical_data['date']).dt.dayofyear
+            current_data = multi_service.fetch_all_sources_for_date(
+                date_obj=target_date,
+                latitude=latitude,
+                longitude=longitude,
+                use_interpolation=True
+            )
+            
+            if current_data:
+                print(f"✓ Дополнительные источники для {date}: {list(current_data.keys())}")
+                # Добавляем информацию о консенсусе в метаданные
+                consensus_sources = list(current_data.keys())
             else:
-                raise Exception("Не удалось получить данные ни из одного источника")
-            
-            print(f"✓ Получено записей: {len(historical_data)}\n")
-            
+                consensus_sources = []
+                
         except Exception as e:
-            return {
-                'error': f'Ошибка получения мультисорсных данных: {str(e)}',
-                'location': {'latitude': latitude, 'longitude': longitude},
-                'date': date
-            }
+            print(f"⚠️ Ошибка при получении мультисорсных данных: {e}")
+            consensus_sources = []
+            
     else:
         # Обычный подход - один источник
         data_service = WeatherDataService(preferred_source=data_source)
@@ -217,9 +213,17 @@ def analyze_weather(latitude: float,
             'data_source': source,
             'years_analyzed': f"{years_range[0]}-{years_range[1]}",
             'data_points': analysis_result.get('data_points', 0),
-            'analysis_type': 'detailed' if detailed else 'summary'
+            'analysis_type': 'detailed' if detailed else 'summary',
+            'multi_source_enabled': use_multi_source,
+            'consensus_sources': consensus_sources if use_multi_source and 'consensus_sources' in locals() else []
         }
     }
+    
+    # Добавляем новые структуры, если они есть (для summary mode)
+    if 'main_features' in analysis_result:
+        result['main_features'] = analysis_result['main_features']
+    if 'additional_features' in analysis_result:
+        result['additional_features'] = analysis_result['additional_features']
     
     # Печатаем результаты
     _print_results(result)
@@ -536,6 +540,12 @@ def analyze_multiple_dates(latitude: float,
             'probabilities': analysis['probabilities'],
             'statistics': analysis['statistics']
         }
+        
+        # Добавляем новые структуры, если они есть
+        if 'main_features' in analysis:
+            result['main_features'] = analysis['main_features']
+        if 'additional_features' in analysis:
+            result['additional_features'] = analysis['additional_features']
         
         results.append(result)
     

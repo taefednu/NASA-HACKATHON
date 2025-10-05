@@ -136,7 +136,7 @@ class TestWeatherDataServiceYearRanges:
 class TestWeatherDataServiceDataFormat:
     """Тесты формата данных"""
     
-    def test_dat-is_dataframe(self):
+    def test_data_is_dataframe(self):
         """Данные это DataFrame"""
         import pandas as pd
         

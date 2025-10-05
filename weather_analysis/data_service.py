@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 import hashlib
-from .mock_data import MockWeatherDataSource
 
 
 class WeatherDataSource:
@@ -378,7 +377,6 @@ class WeatherDataService:
         # Инициализируем источники
         self.nasa = NASAPowerAPI(cache_dir=cache_dir)
         self.openmeteo = OpenMeteoAPI(cache_dir=cache_dir)
-        self.mock = MockWeatherDataSource(cache_dir=cache_dir)
         
         self.preferred_source = preferred_source
         self.use_mock = use_mock
@@ -399,11 +397,6 @@ class WeatherDataService:
         Returns:
             Tuple[DataFrame, источник_данных]
         """
-        # Если явно указано использовать mock
-        if self.use_mock or self.preferred_source == 'mock':
-            data = self.mock.get_historical_data(latitude, longitude, start_year, end_year)
-            return data, 'Mock Data (для тестирования)'
-        
         # Пытаемся получить от предпочитаемого источника
         if self.preferred_source == 'nasa':
             try:
@@ -422,10 +415,8 @@ class WeatherDataService:
                     data = self.openmeteo.get_historical_data(latitude, longitude, start_year, end_year)
                     return data, 'Open-Meteo API'
                 except Exception as e2:
-                    print(f"⚠ Open-Meteo также недоступен: {e2}")
-                    print(f"🧪 Используем Mock данные для тестирования...")
-                    data = self.mock.get_historical_data(latitude, longitude, start_year, end_year)
-                    return data, 'Mock Data (для тестирования)'
+                    print(f"❌ Оба API недоступны: NASA и Open-Meteo")
+                    raise Exception(f"Не удалось получить данные ни из одного источника. NASA: {e}, Open-Meteo: {e2}")
         
         else:  # openmeteo
             try:
@@ -443,10 +434,8 @@ class WeatherDataService:
                         data = self.nasa.get_historical_data(latitude, longitude, start_year, end_year)
                         return data, 'NASA POWER API'
                 except Exception as e2:
-                    print(f"⚠ NASA также недоступен: {e2}")
-                    print(f"🧪 Используем Mock данные для тестирования...")
-                    data = self.mock.get_historical_data(latitude, longitude, start_year, end_year)
-                    return data, 'Mock Data (для тестирования)'
+                    print(f"❌ Оба API недоступны: Open-Meteo и NASA")
+                    raise Exception(f"Не удалось получить данные ни из одного источника. Open-Meteo: {e}, NASA: {e2}")
     
     def test_connection(self) -> Dict[str, bool]:
         """Проверить доступность источников данных"""

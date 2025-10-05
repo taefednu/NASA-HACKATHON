@@ -16,26 +16,50 @@ Endpoints:
     GET /api/health - проверка работоспособности
 """
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import sys
+import os
+from datetime import datetime
+from dotenv import load_dotenv
+from pathlib import Path
+
 sys.path.append('..')
 
 from weather_analysis import analyze_weather, analyze_multiple_dates, analyze_weather_range
-from weather_analysis.utils import export_to_json, export_to_csv
-import os
-from datetime import datetime
+from weather_analysis.utils import export_to_json, export_to_csv, convert_result_units
 
-app = Flask(__name__)
+# Загрузка переменных окружения из .env файла
+load_dotenv()
+
+app = Flask(__name__, static_folder='../frontend', static_url_path='/')
 CORS(app)  # Разрешаем CORS для фронтенда
 
 # Конфигурация
 app.config['JSON_AS_ASCII'] = False  # Для поддержки unicode
 
+# Загрузка API ключей из .env
+GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "YOUR_GOOGLE_MAPS_API_KEY_HERE")
+API_PORT = int(os.environ.get('API_PORT', 5000))
+DEBUG_MODE = os.environ.get('DEBUG', 'true').lower() == 'true'
+
 
 @app.route('/', methods=['GET'])
-def home():
-    """Главная страница API"""
+def serve_index():
+    """Обслуживает index.html для корневого URL"""
+    return send_from_directory(app.static_folder, 'index.html')
+
+
+@app.route('/api/google-maps-api-key', methods=['GET'])
+def google_maps_api_key():
+    """Предоставляет ключ API Google Maps фронтенду"""
+    return jsonify({"apiKey": GOOGLE_MAPS_API_KEY})
+
+
+
+@app.route('/api', methods=['GET'])
+def api_info():
+    """API информация"""
     return jsonify({
         'message': 'NASA Weather Probability API - Multi-Source Edition',
         'version': '2.0.0',
@@ -65,43 +89,25 @@ def home():
 def health_check():
     """Проверка работоспособности API"""
     try:
-        from weather_analysis import WeatherDataService
-        
-        # Проверяем доступность источников данных
-        service = WeatherDataService()
-        sources = service.test_connection()
-        
+        # Проверяем подключение к сервисам
         return jsonify({
-            'status': 'healthy',
-            'timestamp': datetime.now().isoformat(),
-            'data_sources': sources
-        })
+            "status": "ok", 
+            "message": "API is running smoothly", 
+            "version": "2.0.0",
+            "timestamp": datetime.now().isoformat()
+        }), 200
     except Exception as e:
         return jsonify({
-            'status': 'error',
-            'message': str(e)
+            "status": "error", 
+            "message": str(e)
         }), 500
 
 
 @app.route('/api/data-sources', methods=['GET'])
-def data_sources_info():
-    """
-    Информация о доступных источниках данных
-    
-    Response:
-    {
-        "sources": {
-            "nasa_power": {...},
-            "openmeteo": {...},
-            "ges_disc": {...},
-            "cptec": {...}
-        },
-        "multi_source_available": true
-    }
-    """
+def get_data_sources():
+    """Возвращает список доступных источников данных"""
     try:
         from weather_analysis.config import WeatherConfig
-        from weather_analysis.multi_source_service import MultiSourceDataService
         
         config = WeatherConfig()
         
@@ -110,7 +116,7 @@ def data_sources_info():
                 'name': 'NASA POWER',
                 'description': 'NASA Prediction Of Worldwide Energy Resources',
                 'coverage': 'Global',
-                'parameters': list(config.NASA_PARAMETERS.keys())[:10],  # Первые 10 для краткости
+                'parameters': list(config.NASA_PARAMETERS.keys())[:10],
                 'resolution': '0.5° × 0.5° (с интерполяцией до ~100м)',
                 'reliability': 0.95,
                 'status': 'active'
@@ -123,48 +129,23 @@ def data_sources_info():
                 'resolution': '~11km',
                 'reliability': 0.90,
                 'status': 'active'
-            },
-            'ges_disc': {
-                'name': 'NASA GES DISC',
-                'description': 'Global Earth Data & Science Center (Air Quality)',
-                'coverage': 'Global',
-                'parameters': list(config.GES_DISC_PARAMETERS.keys()),
-                'resolution': 'Variable (MERRA-2)',
-                'reliability': 0.95,
-                'status': 'active (mock data for testing)'
-            },
-            'cptec': {
-                'name': 'Brazilian CPTEC',
-                'description': 'Centro de Previsão de Tempo e Estudos Climáticos',
-                'coverage': 'South America',
-                'parameters': list(config.CPTEC_PARAMETERS.keys()),
-                'resolution': 'Regional',
-                'reliability': 0.85,
-                'status': 'active (regional)'
             }
         }
         
         return jsonify({
             'sources': sources_info,
             'multi_source_available': True,
-            'consensus_analysis': {
-                'enabled': True,
-                'min_sources': 2,
-                'confidence_levels': ['high', 'medium', 'low', 'very_low']
-            },
-            'total_parameters': len(config.NASA_PARAMETERS) + len(config.OPENMETEO_PARAMETERS) + 
-                              len(config.GES_DISC_PARAMETERS) + len(config.CPTEC_PARAMETERS)
-        })
+            'total_parameters': len(config.NASA_PARAMETERS) + len(config.OPENMETEO_PARAMETERS)
+        }), 200
     except Exception as e:
-        return jsonify({
-            'error': str(e)
-        }), 500
+        return jsonify({"error": str(e)}), 500
+
 
 
 @app.route('/api/analyze', methods=['POST'])
-def analyze():
+def analyze_weather_endpoint():
     """
-    Анализ погодных условий для конкретной даты и локации
+    Эндпоинт для анализа погоды по одной дате
     
     Request Body:
     {
@@ -172,293 +153,143 @@ def analyze():
         "longitude": 37.6173,
         "date": "2024-06-15",
         "data_source": "nasa",  // optional, default: "nasa"
-        "detailed": false        // optional, default: false
-    }
-    
-    Response:
-    {
-        "location": {...},
-        "date": "2024-06-15",
-        "probabilities": {...},
-        "statistics": {...},
-        "metadata": {...}
+        "detailed": false,      // optional, default: false
+        "units": {},            // optional, custom units
+        "use_multi_source": false  // optional, multi-source mode
     }
     """
+    data = request.get_json()
+    
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
+    date = data.get('date')
+    data_source = data.get('data_source', 'nasa')
+    years_range = (data.get('start_year', 1990), data.get('end_year', 2023))
+    detailed = data.get('detailed', False)
+    units = data.get('units', {})
+    use_multi_source = data.get('use_multi_source', False)
+
+    if not all([latitude, longitude, date]):
+        return jsonify({"error": "Missing latitude, longitude, or date"}), 400
+
     try:
-        data = request.get_json()
-        
-        # Валидация обязательных полей
-        if not data:
-            return jsonify({'error': 'Request body is required'}), 400
-        
-        required_fields = ['latitude', 'longitude', 'date']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({'error': f'Missing required field: {field}'}), 400
-        
-        # Извлекаем параметры
-        latitude = float(data['latitude'])
-        longitude = float(data['longitude'])
-        date = data['date']
-        data_source = data.get('data_source', 'nasa')
-        detailed = data.get('detailed', False)
-        units = data.get('units', None)  # Опциональные единицы измерения
-        use_multi_source = data.get('use_multi_source', False)  # Мультисорсный режим
-        
-        # Валидация координат
-        if not (-90 <= latitude <= 90):
-            return jsonify({'error': 'Invalid latitude. Must be between -90 and 90'}), 400
-        
-        if not (-180 <= longitude <= 180):
-            return jsonify({'error': 'Invalid longitude. Must be between -180 and 180'}), 400
-        
-        # Выполняем анализ
         result = analyze_weather(
             latitude=latitude,
             longitude=longitude,
             date=date,
             data_source=data_source,
+            years_range=years_range,
             detailed=detailed,
             units=units,
             use_multi_source=use_multi_source
         )
-        # Валидация даты
-        try:
-            datetime.strptime(date, '%Y-%m-%d')
-        except ValueError:
-            return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
-        
-        # Выполняем анализ
-        result = analyze_weather(
-            latitude=latitude,
-            longitude=longitude,
-            date=date,
-            data_source=data_source,
-            detailed=detailed,
-            units=units
-        )
-        
-        # Проверяем на ошибки
-        if 'error' in result:
-            return jsonify(result), 500
-        
         return jsonify(result), 200
-        
     except ValueError as e:
-        return jsonify({'error': f'Invalid input: {str(e)}'}), 400
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error(f"Error in /api/analyze: {e}", exc_info=True)
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+
 
 
 @app.route('/api/analyze-multiple', methods=['POST'])
-def analyze_multiple():
-    """
-    Анализ для нескольких дат
+def analyze_multiple_dates_endpoint():
+    """Эндпоинт для анализа погоды по нескольким датам"""
+    data = request.get_json()
     
-    Request Body:
-    {
-        "latitude": 55.7558,
-        "longitude": 37.6173,
-        "dates": ["2024-06-15", "2024-07-01", "2024-08-10"],
-        "data_source": "nasa"  // optional
-    }
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
+    dates = data.get('dates')
+    data_source = data.get('data_source', 'nasa')
+    years_range = (data.get('start_year', 1990), data.get('end_year', 2023))
     
-    Response:
-    {
-        "location": {...},
-        "results": [...]
-    }
-    """
+    if not all([latitude, longitude, dates]):
+        return jsonify({"error": "Missing latitude, longitude, or dates"}), 400
+
     try:
-        data = request.get_json()
-        
-        if not data:
-            return jsonify({'error': 'Request body is required'}), 400
-        
-        required_fields = ['latitude', 'longitude', 'dates']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({'error': f'Missing required field: {field}'}), 400
-        
-        latitude = float(data['latitude'])
-        longitude = float(data['longitude'])
-        dates = data['dates']
-        data_source = data.get('data_source', 'nasa')
-        
-        if not isinstance(dates, list) or len(dates) == 0:
-            return jsonify({'error': 'dates must be a non-empty array'}), 400
-        
-        # Выполняем анализ
         results = analyze_multiple_dates(
             latitude=latitude,
             longitude=longitude,
             dates=dates,
-            data_source=data_source
+            data_source=data_source,
+            years_range=years_range
         )
-        
-        return jsonify({
-            'location': {
-                'latitude': latitude,
-                'longitude': longitude
-            },
-            'results': results
-        }), 200
-        
+        return jsonify(results), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error(f"Error in /api/analyze-multiple: {e}", exc_info=True)
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+
 
 
 @app.route('/api/analyze-range', methods=['POST'])
-def analyze_range():
-    """
-    Анализ погодных условий для диапазона дат
+def analyze_range_endpoint():
+    """Эндпоинт для анализа погоды в диапазоне дат"""
+    data = request.get_json()
     
-    Request Body:
-    {
-        "latitude": 55.7558,
-        "longitude": 37.6173,
-        "start_date": "2026-01-12",
-        "end_date": "2026-01-21",
-        "data_source": "nasa"  // optional
-    }
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
+    start_date = data.get('start_date')
+    end_date = data.get('end_date')
+    data_source = data.get('data_source', 'nasa')
+    years_range = (data.get('start_year', 1990), data.get('end_year', 2023))
+    units = data.get('units', {})
+    use_multi_source = data.get('use_multi_source', False)
     
-    Response:
-    {
-        "location": {...},
-        "date_range": {
-            "start": "2026-01-12",
-            "end": "2026-01-21",
-            "duration_days": 10
-        },
-        "aggregated": {
-            "probabilities": {...},
-            "statistics": {...},
-            "best_days": {...}
-        },
-        "daily_breakdown": [...]
-    }
-    """
+    if not all([latitude, longitude, start_date, end_date]):
+        return jsonify({"error": "Missing latitude, longitude, start_date, or end_date"}), 400
+    
     try:
-        data = request.get_json()
-        
-        # Валидация обязательных полей
-        if not data:
-            return jsonify({'error': 'Request body is required'}), 400
-        
-        required_fields = ['latitude', 'longitude', 'start_date', 'end_date']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({'error': f'Missing required field: {field}'}), 400
-        
-        # Извлекаем параметры
-        latitude = float(data['latitude'])
-        longitude = float(data['longitude'])
-        start_date = data['start_date']
-        end_date = data['end_date']
-        data_source = data.get('data_source', 'nasa')
-        units = data.get('units', None)  # Опциональные единицы измерения
-        use_multi_source = data.get('use_multi_source', False)  # Мультисорсный режим
-        
-        # Валидация координат
-        if not (-90 <= latitude <= 90):
-            return jsonify({'error': 'Invalid latitude. Must be between -90 and 90'}), 400
-        
-        if not (-180 <= longitude <= 180):
-            return jsonify({'error': 'Invalid longitude. Must be between -180 and 180'}), 400
-        
-        # Выполняем анализ
         result = analyze_weather_range(
             latitude=latitude,
             longitude=longitude,
             start_date=start_date,
             end_date=end_date,
             data_source=data_source,
+            years_range=years_range,
             units=units,
             use_multi_source=use_multi_source
-        )        
-        if not (-180 <= longitude <= 180):
-            return jsonify({'error': 'Invalid longitude. Must be between -180 and 180'}), 400
-        
-        # Валидация дат
-        try:
-            datetime.strptime(start_date, '%Y-%m-%d')
-            datetime.strptime(end_date, '%Y-%m-%d')
-        except ValueError:
-            return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
-        
-        # Выполняем анализ
-        result = analyze_weather_range(
-            latitude=latitude,
-            longitude=longitude,
-            start_date=start_date,
-            end_date=end_date,
-            data_source=data_source,
-            units=units
         )
-        
-        # Проверяем на ошибки
-        if 'error' in result:
-            return jsonify(result), 500
-        
         return jsonify(result), 200
-        
     except ValueError as e:
-        return jsonify({'error': f'Invalid input: {str(e)}'}), 400
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error(f"Error in /api/analyze-range: {e}", exc_info=True)
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+
 
 
 @app.route('/api/export/<format_type>', methods=['POST'])
 def export_data(format_type):
-    """
-    Экспорт результатов анализа в CSV или JSON
-    
-    URL: /api/export/csv или /api/export/json
-    
-    Request Body: такой же как для /api/analyze
-    """
-    if format_type not in ['csv', 'json']:
-        return jsonify({'error': 'Invalid format. Use csv or json'}), 400
-    
+    """Эндпоинт для экспорта данных (JSON, CSV)"""
+    data = request.get_json()
+    export_data_content = data.get('data')
+    filename_prefix = data.get('filename', 'weather_data')
+
+    if not export_data_content:
+        return jsonify({"error": "No data provided for export"}), 400
+
     try:
-        data = request.get_json()
+        exports_dir = Path('./data/exports')
+        exports_dir.mkdir(parents=True, exist_ok=True)
         
-        # Выполняем анализ
-        latitude = float(data['latitude'])
-        longitude = float(data['longitude'])
-        date = data['date']
-        
-        result = analyze_weather(
-            latitude=latitude,
-            longitude=longitude,
-            date=date,
-            data_source=data.get('data_source', 'nasa')
-        )
-        
-        if 'error' in result:
-            return jsonify(result), 500
-        
-        # Создаем имя файла
-        filename = f"weather_analysis_{latitude}_{longitude}_{date}.{format_type}"
-        filepath = os.path.join('./data/exports', filename)
-        
-        # Создаем директорию если не существует
-        os.makedirs('./data/exports', exist_ok=True)
-        
-        # Экспортируем
-        if format_type == 'csv':
-            export_to_csv(result, filepath)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"{filename_prefix}_{timestamp}.{format_type}"
+        filepath = exports_dir / filename
+
+        if format_type == 'json':
+            export_to_json(export_data_content, filepath)
+            return jsonify({"message": f"Data exported to {filepath}", "filename": filename}), 200
+        elif format_type == 'csv':
+            export_to_csv(export_data_content, filepath)
+            return jsonify({"message": f"Data exported to {filepath}", "filename": filename}), 200
         else:
-            export_to_json(result, filepath)
-        
-        return jsonify({
-            'message': 'Data exported successfully',
-            'filename': filename,
-            'filepath': filepath
-        }), 200
-        
+            return jsonify({"error": "Unsupported format type. Choose 'json' or 'csv'"}), 400
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error(f"Error in /api/export/{format_type}: {e}", exc_info=True)
+        return jsonify({"error": "Failed to export data", "details": str(e)}), 500
+
 
 
 @app.errorhandler(404)
@@ -475,22 +306,20 @@ def internal_error(error):
 
 if __name__ == '__main__':
     # Запуск сервера
-    port = int(os.environ.get('API_PORT', 5000))
-    debug = os.environ.get('DEBUG', 'true').lower() == 'true'
-    
     print(f"""
     ╔══════════════════════════════════════════════════════════╗
     ║                                                          ║
     ║        NASA Weather Probability API                     ║
-    ║        Version 1.0.0                                     ║
+    ║        Version 2.0.0                                     ║
     ║                                                          ║
     ╚══════════════════════════════════════════════════════════╝
-    
-    🚀 Server running on: http://localhost:{port}
-    📚 API Docs: http://localhost:{port}/
-    🔍 Health Check: http://localhost:{port}/api/health
-    
+
+    🚀 Server running on: http://localhost:{API_PORT}
+    📚 API Docs: http://localhost:{API_PORT}/
+    🔍 Health Check: http://localhost:{API_PORT}/api/health
+    🗺️  Google Maps Key: {'✅ Loaded' if GOOGLE_MAPS_API_KEY != 'YOUR_GOOGLE_MAPS_API_KEY_HERE' else '❌ Not configured'}
+
     Press Ctrl+C to stop
     """)
-    
-    app.run(host='0.0.0.0', port=port, debug=debug)
+
+    app.run(host='0.0.0.0', port=API_PORT, debug=DEBUG_MODE)

@@ -8,12 +8,10 @@ from datetime import date
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Tuple, Optional
 
-from weather_analysis.config import AppConfig
+from weather_analysis.config import WeatherConfig
 from weather_analysis.data_service import WeatherDataService
 from weather_analysis.data_adapters import GESDISCAdapter, CPTECAdapter, OpenMeteoEnhancedAdapter
-from weather_analysis.utils import AppLogger
 
-logger = AppLogger.get_logger()
 
 class MultiSourceDataService:
     """
@@ -46,7 +44,7 @@ class MultiSourceDataService:
         Внутренняя функция для получения данных от одного источника.
         """
         try:
-            logger.info(f"Запрос данных из источника: {source_name} для {date_obj}")
+            print(f"Запрос данных из источника: {source_name} для {date_obj}")
             if source_name == 'nasa':
                 # NASA POWER service get_data ожидает диапазон лет
                 # Для одного дня, передаем один и тот же год
@@ -65,10 +63,10 @@ class MultiSourceDataService:
                 )
                 if data is not None and not data.empty:
                     return data, source_info
-            logger.warning(f"Данные из источника {source_name} для {date_obj} не получены.")
+            print("⚠️ " + f"Данные из источника {source_name} для {date_obj} не получены.")
             return None
         except Exception as e:
-            logger.error(f"Ошибка при получении данных из {source_name} для {date_obj}: {e}")
+            print("❌ " + f"Ошибка при получении данных из {source_name} для {date_obj}: {e}")
             return None
 
     def fetch_all_sources_for_date(self, 
@@ -112,9 +110,9 @@ class MultiSourceDataService:
                     result = future.result()
                     if result:
                         all_data[source_name] = result[0] # result[0] это DataFrame
-                        logger.info(f"Данные успешно получены из {source_name} для {date_obj}")
+                        print(f"Данные успешно получены из {source_name} для {date_obj}")
                 except Exception as exc:
-                    logger.error(f'{source_name} сгенерировал исключение: {exc}')
+                    print("❌ " + f'{source_name} сгенерировал исключение: {exc}')
         
         return all_data
 
@@ -152,7 +150,7 @@ class MultiSourceDataService:
         }
         
         if not all_data:
-            logger.warning(f"Нет доступных данных из источников для {date_obj}.")
+            print("⚠️ " + f"Нет доступных данных из источников для {date_obj}.")
             return consensus_results
         
         for param in parameters:
@@ -167,7 +165,7 @@ class MultiSourceDataService:
                     source_values[source_name] = float(value) # Сохраняем значения от каждого источника
                 else:
                     # Логируем, если параметр отсутствует в источнике, но не прерываем работу
-                    logger.debug(f"Параметр '{param}' отсутствует в данных от источника {source_name}.")
+                    print("🔍 " + f"Параметр '{param}' отсутствует в данных от источника {source_name}.")
             
             if param_values:
                 mean_val = np.mean(param_values)
@@ -195,7 +193,7 @@ class MultiSourceDataService:
                     "source_values": source_values # Значения от каждого источника
                 }
             else:
-                logger.warning(f"Недостаточно данных для консенсус-анализа параметра '{param}' для {date_obj}.")
+                print("⚠️ " + f"Недостаточно данных для консенсус-анализа параметра '{param}' для {date_obj}.")
                 consensus_results["consensus_analysis"][param] = {
                     "mean": None, "median": None, "std_dev": None,
                     "min": None, "max": None, "agreement_level": 0.0, 
@@ -207,7 +205,7 @@ class MultiSourceDataService:
 
 if __name__ == "__main__":
     # Пример использования
-    logger.info("Тестирование MultiSourceDataService...")
+    print("Тестирование MultiSourceDataService...")
     
     # Инициализация отдельных сервисов и адаптеров
     nasa_power = WeatherDataService(preferred_source='nasa')
@@ -252,4 +250,4 @@ if __name__ == "__main__":
     )
     print(json.dumps(consensus_analysis_result_excluded, indent=2, ensure_ascii=False))
     
-    logger.info("MultiSourceDataService тестирование завершено.")
+    print("MultiSourceDataService тестирование завершено.")

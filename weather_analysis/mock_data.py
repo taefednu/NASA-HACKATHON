@@ -236,17 +236,17 @@ if __name__ == "__main__":
     print("Генерация мок-данных NASA POWER...")
     nasa_mock = generate_mock_nasa_power_data(2020, 2022, 34.05, -118.25)
     # print(json.dumps(nasa_mock, indent=2))
-    print(f"Сгенерировано данных для NASA POWER для {len(nasa_mock["parameters"]["T2M"])} дней.")
+    print(f"Сгенерировано данных для NASA POWER для {len(nasa_mock['parameters']['T2M'])} дней.")
 
     print("\nГенерация мок-данных Open-Meteo...")
     openmeteo_mock = generate_mock_openmeteo_data(date(2023, 1, 1), date(2023, 1, 5), 34.05, -118.25)
     # print(json.dumps(openmeteo_mock, indent=2))
-    print(f"Сгенерировано данных для Open-Meteo для {len(openmeteo_mock["daily"]["time"])} дней.")
+    print(f"Сгенерировано данных для Open-Meteo для {len(openmeteo_mock['daily']['time'])} дней.")
 
     print("\nГенерация мок-данных GES DISC...")
     ges_disc_mock = generate_mock_ges_disc_data(date(2023, 1, 1), date(2023, 1, 3), 34.05, -118.25)
-    print(f"Сгенерировано данных для GES DISC для {len(ges_disc_mock["data"])} дней.")
+    print(f"Сгенерировано данных для GES DISC для {len(ges_disc_mock['data'])} дней.")
 
     print("\nГенерация мок-данных CPTEC...")
     cptec_mock = generate_mock_cptec_data(date(2023, 1, 1), date(2023, 1, 3), 34.05, -118.25)
-    print(f"Сгенерировано данных для CPTEC для {len(cptec_mock["data"])} дней.")
+    print(f"Сгенерировано данных для CPTEC для {len(cptec_mock['data'])} дней.")
