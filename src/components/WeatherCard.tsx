@@ -34,9 +34,29 @@ const WeatherCard = ({ title, probability, description, icon: Icon, variant }: W
   };
 
   const getSeverityColor = () => {
-    if (probability >= 70) return "text-destructive";
-    if (probability >= 40) return "text-accent";
-    return "text-muted-foreground";
+    // Основные цвета для каждого варианта
+    const baseColors = {
+      hot: "text-weather-hot",
+      cold: "text-weather-cold", 
+      windy: "text-weather-windy",
+      humid: "text-weather-humid",
+      uncomfortable: "text-weather-uncomfortable",
+    };
+    
+    // Интенсивность цвета в зависимости от процента
+    if (probability >= 70) {
+      // Очень яркий цвет для высокого процента
+      return cn(baseColors[variant], "brightness-125 saturate-150");
+    } else if (probability >= 50) {
+      // Яркий цвет для среднего процента
+      return cn(baseColors[variant], "brightness-110 saturate-125");
+    } else if (probability >= 30) {
+      // Обычный цвет
+      return baseColors[variant];
+    } else {
+      // Приглушенный цвет для низкого процента
+      return cn(baseColors[variant], "opacity-75");
+    }
   };
 
   return (
